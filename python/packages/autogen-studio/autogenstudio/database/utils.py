@@ -24,6 +24,7 @@ from ..datamodel import (
     Workflow,
     WorkflowAgentLink,
     WorkFlowType,
+    Tool,
 )
 
 
@@ -52,6 +53,7 @@ def workflow_from_id(workflow_id: int, dbmanager: Any):
             agent: Agent = dbmanager.get_items(Agent, filters={"id": agent_id}, session=session).data[0]
             agent_dict = dump_agent(agent)
             agent_dict["skills"] = [Skill.model_validate(skill.model_dump(mode="json")) for skill in agent.skills]
+            agent_dict["tools"] = [Tool.model_validate(tool.model_dump(mode="json")) for tool in agent.tools]
             model_exclude = [
                 "id",
                 "agent_id",
@@ -144,109 +146,202 @@ def run_migration(engine_uri: str):
 def init_db_samples(dbmanager: Any):
     workflows = dbmanager.get(Workflow).data
     workflow_names = [w.name for w in workflows]
-    if "Default Workflow" in workflow_names and "Travel Planning Workflow" in workflow_names:
-        logger.info("Database already initialized with Default and Travel Planning Workflows")
+    if "YOLO Workflow" in workflow_names and "YOLO Workflow" in workflow_names:
+        logger.info("Database already initialized with YOLO Workflow")
         return
-    logger.info("Initializing database with Default and Travel Planning Workflows")
+    logger.info("Initializing database with YOLO Workflow")
 
     # models
-    google_gemini_model = Model(
-        model="gemini-1.5-pro-latest",
-        description="Google's Gemini model",
-        user_id="guestuser@gmail.com",
-        api_type="google",
-    )
-    azure_model = Model(
-        model="gpt4-turbo",
-        description="Azure OpenAI  model",
-        user_id="guestuser@gmail.com",
-        api_type="azure",
-        base_url="https://api.your azureendpoint.com/v1",
-    )
-    zephyr_model = Model(
-        model="zephyr",
-        description="Local Huggingface Zephyr model via vLLM, LMStudio or Ollama",
-        base_url="http://localhost:1234/v1",
+    gpt_4o_mini = Model(
+        model="gpt-4o-mini",
+        description="OpenAI gpt-40-mini model",
         user_id="guestuser@gmail.com",
         api_type="open_ai",
-    )
-
-    gpt_4_model = Model(
-        model="gpt-4-1106-preview", description="OpenAI GPT-4 model", user_id="guestuser@gmail.com", api_type="open_ai"
-    )
-
-    anthropic_sonnet_model = Model(
-        model="claude-3-5-sonnet-20240620",
-        description="Anthropic's Claude 3.5 Sonnet model",
-        api_type="anthropic",
-        user_id="guestuser@gmail.com",
+        api_key=os.getenv("OPEN_KEY")
     )
 
     # skills
-    generate_pdf_skill = Skill(
-        name="generate_and_save_pdf",
-        description="Generate and save a pdf file based on the provided input sections.",
+    confluence_search = Skill(
+        name="confluence_search",
+        description="Confluence search by query.",
         user_id="guestuser@gmail.com",
-        libraries=["requests", "fpdf", "PIL"],
-        content='import uuid\nimport requests\nfrom fpdf import FPDF\nfrom typing import List, Dict, Optional\nfrom pathlib import Path\nfrom PIL import Image, ImageDraw, ImageOps\nfrom io import BytesIO\n\ndef generate_and_save_pdf(\n    sections: List[Dict[str, Optional[str]]], \n    output_file: str = "report.pdf", \n    report_title: str = "PDF Report"\n) -> None:\n    """\n    Function to generate a beautiful PDF report in A4 paper format. \n\n    :param sections: A list of sections where each section is represented by a dictionary containing:\n                     - title: The title of the section.\n                     - level: The heading level (e.g., "title", "h1", "h2").\n                     - content: The content or body text of the section.\n                     - image: (Optional) The URL or local path to the image.\n    :param output_file: The name of the output PDF file. (default is "report.pdf")\n    :param report_title: The title of the report. (default is "PDF Report")\n    :return: None\n    """\n\n    def get_image(image_url_or_path):\n        if image_url_or_path.startswith("http://") or image_url_or_path.startswith("https://"):\n            response = requests.get(image_url_or_path)\n            if response.status_code == 200:\n                return BytesIO(response.content)\n        elif Path(image_url_or_path).is_file():\n            return open(image_url_or_path, \'rb\')\n        return None\n\n    def add_rounded_corners(img, radius=6):\n        mask = Image.new(\'L\', img.size, 0)\n        draw = ImageDraw.Draw(mask)\n        draw.rounded_rectangle([(0, 0), img.size], radius, fill=255)\n        img = ImageOps.fit(img, mask.size, centering=(0.5, 0.5))\n        img.putalpha(mask)\n        return img\n\n    class PDF(FPDF):\n        def header(self):\n            self.set_font("Arial", "B", 12)\n            self.cell(0, 10, report_title, 0, 1, "C")\n            \n        def chapter_title(self, txt): \n            self.set_font("Arial", "B", 12)\n            self.cell(0, 10, txt, 0, 1, "L")\n            self.ln(2)\n        \n        def chapter_body(self, body):\n            self.set_font("Arial", "", 12)\n            self.multi_cell(0, 10, body)\n            self.ln()\n\n        def add_image(self, img_data):\n            img = Image.open(img_data)\n            img = add_rounded_corners(img)\n            img_path = Path(f"temp_{uuid.uuid4().hex}.png")\n            img.save(img_path, format="PNG")\n            self.image(str(img_path), x=None, y=None, w=190 if img.width > 190 else img.width)\n            self.ln(10)\n            img_path.unlink()\n\n    pdf = PDF()\n    pdf.add_page()\n    font_size = {"title": 16, "h1": 14, "h2": 12, "body": 12}\n\n    for section in sections:\n        title, level, content, image = section.get("title", ""), section.get("level", "h1"), section.get("content", ""), section.get("image")\n        pdf.set_font("Arial", "B" if level in font_size else "", font_size.get(level, font_size["body"]))\n        pdf.chapter_title(title)\n\n        if content: pdf.chapter_body(content)\n        if image:\n            img_data = get_image(image)\n            if img_data:\n                pdf.add_image(img_data)\n                if isinstance(img_data, BytesIO):\n                    img_data.close()\n\n    pdf.output(output_file)\n    print(f"PDF report saved as {output_file}")\n\n# # Example usage\n# sections = [\n#     {\n#         "title": "Introduction - Early Life",\n#         "level": "h1",\n#         "image": "https://picsum.photos/536/354",\n#         "content": ("Marie Curie was born on 7 November 1867 in Warsaw, Poland. "\n#                     "She was the youngest of five children. Both of her parents were teachers. "\n#                     "Her father was a math and physics instructor, and her mother was the head of a private school. "\n#                     "Marie\'s curiosity and brilliance were evident from an early age."),\n#     },\n#     {\n#         "title": "Academic Accomplishments",\n#         "level": "h2",\n#         "content": ("Despite many obstacles, Marie Curie earned degrees in physics and mathematics from the University of Paris. "\n#                     "She conducted groundbreaking research on radioactivity, becoming the first woman to win a Nobel Prize. "\n#                     "Her achievements paved the way for future generations of scientists, particularly women in STEM fields."),\n#     },\n#     {\n#         "title": "Major Discoveries",\n#         "level": "h2",\n#         "image": "https://picsum.photos/536/354",\n#         "content": ("One of Marie Curie\'s most notable discoveries was that of radium and polonium, two radioactive elements. "\n#                     "Her meticulous work not only advanced scientific understanding but also had practical applications in medicine and industry."),\n#     },\n#     {\n#         "title": "Conclusion - Legacy",\n#         "level": "h1",\n#         "content": ("Marie Curie\'s legacy lives on through her contributions to science, her role as a trailblazer for women in STEM, "\n#                     "and the ongoing impact of her discoveries on modern medicine and technology. "\n#                     "Her life and work remain an inspiration to many, demonstrating the power of perseverance and intellectual curiosity."),\n#     },\n# ]\n\n# generate_and_save_pdf_report(sections, "my_report.pdf", "The Life of Marie Curie")',
+        libraries=["requests"],
+        content="""import requests
+
+
+def confluence_search(query: str) -> dict:
+    return requests.get(
+        "http://localhost:7700/plugin/api/v1/confluence/search",
+        params={"query": query},
+        headers={"Authorization": "Bearer token-123"},
+    ).json()
+""",
     )
-    generate_image_skill = Skill(
-        name="generate_and_save_images",
-        secrets=[{"secret": "OPENAI_API_KEY", "value": None}],
-        libraries=["openai"],
-        description="Generate and save images based on a user's query.",
-        content='\nfrom typing import List\nimport uuid\nimport requests  # to perform HTTP requests\nfrom pathlib import Path\n\nfrom openai import OpenAI\n\n\ndef generate_and_save_images(query: str, image_size: str = "1024x1024") -> List[str]:\n    """\n    Function to paint, draw or illustrate images based on the users query or request. Generates images from a given query using OpenAI\'s DALL-E model and saves them to disk.  Use the code below anytime there is a request to create an image.\n\n    :param query: A natural language description of the image to be generated.\n    :param image_size: The size of the image to be generated. (default is "1024x1024")\n    :return: A list of filenames for the saved images.\n    """\n\n    client = OpenAI()  # Initialize the OpenAI client\n    response = client.images.generate(model="dall-e-3", prompt=query, n=1, size=image_size)  # Generate images\n\n    # List to store the file names of saved images\n    saved_files = []\n\n    # Check if the response is successful\n    if response.data:\n        for image_data in response.data:\n            # Generate a random UUID as the file name\n            file_name = str(uuid.uuid4()) + ".png"  # Assuming the image is a PNG\n            file_path = Path(file_name)\n\n            img_url = image_data.url\n            img_response = requests.get(img_url)\n            if img_response.status_code == 200:\n                # Write the binary content to a file\n                with open(file_path, "wb") as img_file:\n                    img_file.write(img_response.content)\n                    print(f"Image saved to {file_path}")\n                    saved_files.append(str(file_path))\n            else:\n                print(f"Failed to download the image from {img_url}")\n    else:\n        print("No image data found in the response!")\n\n    # Return the list of saved files\n    return saved_files\n\n\n# Example usage of the function:\n# generate_and_save_images("A cute baby sea otter")\n',
+
+    jira_issue_create = Skill(
+        name="jira_issue_create",
+        description="Jira Issue Create",
         user_id="guestuser@gmail.com",
+        libraries=["requests"],
+        content="""import requests
+
+
+def jira_issue_create(title: str, description: str) -> dict:
+    json = {
+        "projectKey": "GAI21",
+        "summary": title,
+        "description": description,
+        "issuetype": "Story",
+    }
+    return requests.post(
+        "http://localhost:7700/plugin/api/v1/jira/create",
+        json=json,
+        headers={"Authorization": "Bearer token-123"},
+    ).json()
+""",
+    )
+
+    send_knox_email = Skill(
+        name="send_knox_email",
+        description="Knox Email Send",
+        user_id="guestuser@gmail.com",
+        libraries=["requests"],
+        content="""import requests
+
+
+def send_knox_email(
+    sender: str, recipients: list[str], title: str, content: str
+) -> str:
+    json = {
+        "sender": sender,
+        "recipients": recipients,
+        "title": title,
+        "content": content,
+    }
+    return requests.post(
+        "http://localhost:7700/plugin/api/v1/knox/send-mail",
+        json=json,
+        headers={"Authorization": "Bearer token-123"},
+    ).json()""",
+    )
+
+    search_employee = Skill(
+        name="search_employee",
+        description="Search employee",
+        user_id="guestuser@gmail.com",
+        libraries=["requests"],
+        content="""import requests
+
+def search_employee(nickname: str) -> dict:
+    params = {"nickname": nickname}
+    return requests.get(
+        "http://localhost:7700/plugin/api/v1/knox/search-employee",
+        params=params,
+        headers={"Authorization": "Bearer token-123"},
+    ).json()
+""",
+    )
+
+    summary_content = Skill(
+        name="summary_content",
+        description="Summary Content",
+        user_id="guestuser@gmail.com",
+        libraries=["requests"],
+        content="""import requests
+
+
+def summary_content(content: str) -> str:
+    json = {
+        "content": content,
+    }
+    return requests.post(
+        "/summary", json=json, headers={"Authorization": "Bearer token-123"}
+    ).json()
+""",
+    )
+
+    # tools
+    summary_content_tool = Tool(
+        name="summary_content_tool",
+        description="Summary Content Tool",
+        user_id="guestuser@gmail.com",
+        method="post",
+        url="http://localhost:7700/plugin/api/v1/summary",
+        args_info={"content": "str"},
+        auth_provider_id="summary"
     )
 
     # agents
 
-    planner_assistant_config = AgentConfig(
-        name="planner_assistant",
-        description="Assistant Agent",
+    user_proxy_config = AgentConfig(
+        name="user_proxy_agent",
+        description="User Proxy Agent Configuration",
         human_input_mode="NEVER",
         max_consecutive_auto_reply=25,
-        system_message="You are a helpful assistant that can suggest a travel plan for a user and utilize any context information provided. You are the primary cordinator who will receive suggestions or advice from other agents (local_assistant, language_assistant). You must ensure that the finally plan integrates the suggestions from other agents or team members. YOUR FINAL RESPONSE MUST BE THE COMPLETE PLAN. When the plan is complete and all perspectives are integrated, you can respond with TERMINATE.",
-        code_execution_config=CodeExecutionConfigTypes.none,
-        llm_config={},
+        system_message="You are a helpful assistant",
+        code_execution_config=CodeExecutionConfigTypes.local,
+        default_auto_reply="TERMINATE",
+        llm_config=False,
     )
-    planner_assistant = Agent(
-        user_id="guestuser@gmail.com",
-        type=AgentType.assistant,
-        config=planner_assistant_config.model_dump(mode="json"),
+    user_proxy_agent = Agent(
+        user_id="guestuser@gmail.com", type=AgentType.userproxy, config=user_proxy_config.model_dump(mode="json")
     )
 
-    local_assistant_config = AgentConfig(
-        name="local_assistant",
-        description="Local Assistant Agent",
+    confluence_agent_config = AgentConfig(
+        name="confluence_agent",
+        description="Confluence Assistant Agent. Solve the problem related to confluence",
         human_input_mode="NEVER",
         max_consecutive_auto_reply=25,
-        system_message="You are a local assistant that can suggest local activities or places to visit for a user and can utilize any context information provided. You can suggest local activities, places to visit, restaurants to eat at, etc. You can also provide information about the weather, local events, etc. You can provide information about the local area, but you cannot suggest a complete travel plan. You can only provide information about the local area.",
+        system_message=AssistantAgent.DEFAULT_SYSTEM_MESSAGE,
         code_execution_config=CodeExecutionConfigTypes.none,
         llm_config={},
     )
-    local_assistant = Agent(
-        user_id="guestuser@gmail.com", type=AgentType.assistant, config=local_assistant_config.model_dump(mode="json")
+    confluence_agent = Agent(
+        user_id="guestuser@gmail.com", type=AgentType.assistant, config=confluence_agent_config.model_dump(mode="json")
     )
 
-    language_assistant_config = AgentConfig(
-        name="language_assistant",
-        description="Language Assistant Agent",
+    jira_agent_config = AgentConfig(
+        name="jira_agent",
+        description="Jira Assistant Agent. Solve the problem related to jira",
         human_input_mode="NEVER",
         max_consecutive_auto_reply=25,
-        system_message="You are a helpful assistant that can review travel plans, providing feedback on important/critical tips about how best to address language or communication challenges for the given destination. If the plan already includes language tips, you can mention that the plan is satisfactory, with rationale.",
+        system_message=AssistantAgent.DEFAULT_SYSTEM_MESSAGE,
         code_execution_config=CodeExecutionConfigTypes.none,
         llm_config={},
     )
-    language_assistant = Agent(
-        user_id="guestuser@gmail.com",
-        type=AgentType.assistant,
-        config=language_assistant_config.model_dump(mode="json"),
+    jira_agent = Agent(
+        user_id="guestuser@gmail.com", type=AgentType.assistant, config=jira_agent_config.model_dump(mode="json")
+    )
+
+    knox_agent_config = AgentConfig(
+        name="knox_agent",
+        description="Knox Assistant Agent. Solve the problem related to knox",
+        human_input_mode="NEVER",
+        max_consecutive_auto_reply=25,
+        system_message=AssistantAgent.DEFAULT_SYSTEM_MESSAGE,
+        code_execution_config=CodeExecutionConfigTypes.none,
+        llm_config={},
+    )
+    knox_agent = Agent(
+        user_id="guestuser@gmail.com", type=AgentType.assistant, config=knox_agent_config.model_dump(mode="json")
+    )
+
+    summary_agent_config = AgentConfig(
+        name="summary_agent",
+        description="Summary Assistant Agent. Summary the content",
+        human_input_mode="NEVER",
+        max_consecutive_auto_reply=25,
+        system_message=AssistantAgent.DEFAULT_SYSTEM_MESSAGE,
+        code_execution_config=CodeExecutionConfigTypes.none,
+        llm_config={},
+    )
+    summary_agent = Agent(
+        user_id="guestuser@gmail.com", type=AgentType.assistant, config=summary_agent_config.model_dump(mode="json")
     )
 
     # group chat agent
-    travel_groupchat_config = AgentConfig(
-        name="travel_groupchat",
+    yolo_groupchat_config = AgentConfig(
+        name="yolo_groupchat",
         admin_name="groupchat",
         description="Group Chat Agent Configuration",
         human_input_mode="NEVER",
@@ -257,105 +352,77 @@ def init_db_samples(dbmanager: Any):
         llm_config={},
         speaker_selection_method="auto",
     )
-    travel_groupchat_agent = Agent(
-        user_id="guestuser@gmail.com", type=AgentType.groupchat, config=travel_groupchat_config.model_dump(mode="json")
-    )
-
-    user_proxy_config = AgentConfig(
-        name="user_proxy",
-        description="User Proxy Agent Configuration",
-        human_input_mode="NEVER",
-        max_consecutive_auto_reply=25,
-        system_message="You are a helpful assistant",
-        code_execution_config=CodeExecutionConfigTypes.local,
-        default_auto_reply="TERMINATE",
-        llm_config=False,
-    )
-    user_proxy = Agent(
-        user_id="guestuser@gmail.com", type=AgentType.userproxy, config=user_proxy_config.model_dump(mode="json")
-    )
-
-    default_assistant_config = AgentConfig(
-        name="default_assistant",
-        description="Assistant Agent",
-        human_input_mode="NEVER",
-        max_consecutive_auto_reply=25,
-        system_message=AssistantAgent.DEFAULT_SYSTEM_MESSAGE,
-        code_execution_config=CodeExecutionConfigTypes.none,
-        llm_config={},
-    )
-    default_assistant = Agent(
-        user_id="guestuser@gmail.com", type=AgentType.assistant, config=default_assistant_config.model_dump(mode="json")
+    yolo_groupchat_agent = Agent(
+        user_id="guestuser@gmail.com", type=AgentType.groupchat, config=yolo_groupchat_config.model_dump(mode="json")
     )
 
     # workflows
-    travel_workflow = Workflow(
-        name="Travel Planning Workflow",
-        description="Travel workflow",
-        user_id="guestuser@gmail.com",
-        sample_tasks=["Plan a 3 day trip to Hawaii Islands.", "Plan an eventful and exciting trip to  Uzbeksitan."],
-    )
-    default_workflow = Workflow(
-        name="Default Workflow",
-        description="Default workflow",
+    yolo_workflow = Workflow(
+        name="YOLO Workflow",
+        description="yolo workflow",
         user_id="guestuser@gmail.com",
         sample_tasks=[
-            "paint a picture of a glass of ethiopian coffee, freshly brewed in a tall glass cup, on a table right in front of a lush green forest scenery",
-            "Plot the stock price of NVIDIA YTD.",
-        ],
+            "'Scaled Agile'로 confluence에서 검색한 후 해당 내용을 요약해서 jira 이슈로 생성 한 후 그 결과를 knox mail로 jason과 milo에게 보내줘."],
     )
 
     with Session(dbmanager.engine) as session:
-        session.add(zephyr_model)
-        session.add(google_gemini_model)
-        session.add(azure_model)
-        session.add(gpt_4_model)
-        session.add(anthropic_sonnet_model)
-        session.add(generate_image_skill)
-        session.add(generate_pdf_skill)
-        session.add(user_proxy)
-        session.add(default_assistant)
-        session.add(travel_groupchat_agent)
-        session.add(planner_assistant)
-        session.add(local_assistant)
-        session.add(language_assistant)
+        # model
+        session.add(gpt_4o_mini)
 
-        session.add(travel_workflow)
-        session.add(default_workflow)
+        # skill
+        session.add(confluence_search)
+        session.add(jira_issue_create)
+        session.add(send_knox_email)
+        session.add(search_employee)
+        session.add(summary_content)
+
+        # tool
+        session.add(summary_content_tool)
+
+        # agent
+        session.add(user_proxy_agent)
+        session.add(confluence_agent)
+        session.add(jira_agent)
+        session.add(knox_agent)
+        session.add(summary_agent)
+        session.add(yolo_groupchat_agent)
+
+        session.add(yolo_workflow)
         session.commit()
 
-        dbmanager.link(link_type="agent_model", primary_id=default_assistant.id, secondary_id=gpt_4_model.id)
-        dbmanager.link(link_type="agent_skill", primary_id=default_assistant.id, secondary_id=generate_image_skill.id)
-        dbmanager.link(
-            link_type="workflow_agent", primary_id=default_workflow.id, secondary_id=user_proxy.id, agent_type="sender"
-        )
-        dbmanager.link(
-            link_type="workflow_agent",
-            primary_id=default_workflow.id,
-            secondary_id=default_assistant.id,
-            agent_type="receiver",
-        )
+        dbmanager.link(link_type="agent_model", primary_id=confluence_agent.id, secondary_id=gpt_4o_mini.id)
+        dbmanager.link(link_type="agent_model", primary_id=jira_agent.id, secondary_id=gpt_4o_mini.id)
+        dbmanager.link(link_type="agent_model", primary_id=knox_agent.id, secondary_id=gpt_4o_mini.id)
+        dbmanager.link(link_type="agent_model", primary_id=summary_agent.id, secondary_id=gpt_4o_mini.id)
+
+        dbmanager.link(link_type="agent_skill", primary_id=confluence_agent.id, secondary_id=confluence_search.id)
+        dbmanager.link(link_type="agent_skill", primary_id=jira_agent.id, secondary_id=jira_issue_create.id)
+        dbmanager.link(link_type="agent_skill", primary_id=knox_agent.id, secondary_id=search_employee.id)
+        dbmanager.link(link_type="agent_skill", primary_id=knox_agent.id, secondary_id=send_knox_email.id)
+        dbmanager.link(link_type="agent_skill", primary_id=summary_agent.id, secondary_id=summary_content.id)
+
+        # link agent to tool
+        dbmanager.link(link_type="agent_tool", primary_id=summary_agent.id, secondary_id=summary_content_tool.id)
+
 
         # link agents to travel groupchat agent
 
-        dbmanager.link(link_type="agent_agent", primary_id=travel_groupchat_agent.id, secondary_id=planner_assistant.id)
-        dbmanager.link(link_type="agent_agent", primary_id=travel_groupchat_agent.id, secondary_id=local_assistant.id)
-        dbmanager.link(
-            link_type="agent_agent", primary_id=travel_groupchat_agent.id, secondary_id=language_assistant.id
-        )
-        dbmanager.link(link_type="agent_agent", primary_id=travel_groupchat_agent.id, secondary_id=user_proxy.id)
-        dbmanager.link(link_type="agent_model", primary_id=travel_groupchat_agent.id, secondary_id=gpt_4_model.id)
-        dbmanager.link(link_type="agent_model", primary_id=planner_assistant.id, secondary_id=gpt_4_model.id)
-        dbmanager.link(link_type="agent_model", primary_id=local_assistant.id, secondary_id=gpt_4_model.id)
-        dbmanager.link(link_type="agent_model", primary_id=language_assistant.id, secondary_id=gpt_4_model.id)
+        dbmanager.link(link_type="agent_agent", primary_id=yolo_groupchat_agent.id, secondary_id=user_proxy_agent.id)
+        dbmanager.link(link_type="agent_agent", primary_id=yolo_groupchat_agent.id, secondary_id=confluence_agent.id)
+        dbmanager.link(link_type="agent_agent", primary_id=yolo_groupchat_agent.id, secondary_id=jira_agent.id)
+        dbmanager.link(link_type="agent_agent", primary_id=yolo_groupchat_agent.id, secondary_id=knox_agent.id)
+        dbmanager.link(link_type="agent_agent", primary_id=yolo_groupchat_agent.id, secondary_id=summary_agent.id)
+
+        dbmanager.link(link_type="agent_model", primary_id=yolo_groupchat_agent.id, secondary_id=gpt_4o_mini.id)
 
         dbmanager.link(
-            link_type="workflow_agent", primary_id=travel_workflow.id, secondary_id=user_proxy.id, agent_type="sender"
+            link_type="workflow_agent", primary_id=yolo_workflow.id, secondary_id=user_proxy_agent.id,
+            agent_type="sender"
         )
         dbmanager.link(
             link_type="workflow_agent",
-            primary_id=travel_workflow.id,
-            secondary_id=travel_groupchat_agent.id,
+            primary_id=yolo_workflow.id,
+            secondary_id=yolo_groupchat_agent.id,
             agent_type="receiver",
         )
-        logger.info("Successfully initialized database with Default and Travel Planning Workflows")
+        logger.info("Successfully initialized database with YOLO Workflow")

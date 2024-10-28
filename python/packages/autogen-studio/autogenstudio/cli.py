@@ -5,7 +5,7 @@ import typer
 import uvicorn
 from typing_extensions import Annotated
 
-from .version import VERSION
+from autogenstudio.version import VERSION
 
 app = typer.Typer()
 

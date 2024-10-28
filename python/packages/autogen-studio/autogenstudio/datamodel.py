@@ -1,3 +1,4 @@
+from collections import defaultdict
 from datetime import datetime
 from enum import Enum
 from typing import Any, Callable, Dict, List, Literal, Optional, Union
@@ -111,6 +112,33 @@ class Skill(SQLModel, table=True):
     secrets: Optional[List[dict]] = Field(default_factory=list, sa_column=Column(JSON))
     libraries: Optional[List[str]] = Field(default_factory=list, sa_column=Column(JSON))
     agents: List["Agent"] = Relationship(back_populates="skills", link_model=AgentSkillLink)
+
+
+class AgentToolLink(SQLModel, table=True):
+    __table_args__ = {"sqlite_autoincrement": True}
+    agent_id: int = Field(default=None, primary_key=True, foreign_key="agent.id")
+    tool_id: int = Field(default=None, primary_key=True, foreign_key="tool.id")
+
+
+class Tool(SQLModel, table=True):
+    __table_args__ = {"sqlite_autoincrement": True}
+    id: Optional[int] = Field(default=None, primary_key=True)
+    created_at: datetime = Field(
+        default_factory=datetime.now,
+        sa_column=Column(DateTime(timezone=True), server_default=func.now()),
+    )  # pylint: disable=not-callable
+    updated_at: datetime = Field(
+        default_factory=datetime.now,
+        sa_column=Column(DateTime(timezone=True), onupdate=func.now()),
+    )  # pylint: disable=not-callable
+    user_id: Optional[str] = None
+    name: str
+    description: Optional[str] = None
+    method: str
+    url: str
+    args_info: Dict[str, Any] = Field(default_factory=defaultdict, sa_column=Column(JSON))
+    auth_provider_id: Optional[str] = None
+    agents: List["Agent"] = Relationship(back_populates="tools", link_model=AgentToolLink)
 
 
 class LLMConfig(SQLModel, table=False):
@@ -229,6 +257,7 @@ class Agent(SQLModel, table=True):
     type: AgentType = Field(default=AgentType.assistant, sa_column=Column(SqlEnum(AgentType)))
     config: Union[AgentConfig, dict] = Field(default_factory=AgentConfig, sa_column=Column(JSON))
     skills: List[Skill] = Relationship(back_populates="agents", link_model=AgentSkillLink)
+    tools: List[Tool] = Relationship(back_populates="agents", link_model=AgentToolLink)
     models: List[Model] = Relationship(back_populates="agents", link_model=AgentModelLink)
     workflows: List["Workflow"] = Relationship(link_model=WorkflowAgentLink, back_populates="agents")
     parents: List["Agent"] = Relationship(
