@@ -26,6 +26,7 @@ from .utils import (
     save_skills_to_file,
     summarize_chat_history,
 )
+from .utils.function_create_util import create_dynamic_function
 
 
 class AutoWorkflowManager:
@@ -92,6 +93,8 @@ class AutoWorkflowManager:
         self.history = history or []
         self.sender = None
         self.receiver = None
+        self.tool_agent = None
+        self.tool_list = []
 
     def _run_workflow(self, message: str, history: Optional[List[Message]] = None, clear_history: bool = False) -> None:
         """
@@ -310,6 +313,7 @@ class AutoWorkflowManager:
         """ """
 
         skills = agent.get("skills", [])
+        tools = agent.get("tools", [])
 
         # When human input mode is not NEVER and no model is attached, the ui is passing bogus llm_config.
         configured_models = agent.get("models")
@@ -317,6 +321,10 @@ class AutoWorkflowManager:
             agent["config"]["llm_config"] = False
 
         agent = Agent.model_validate(agent)
+
+        if tools:
+            agent.tools = tools
+
         agent.config.is_termination_msg = agent.config.is_termination_msg or (
             lambda x: "TERMINATE" in x.get("content", "").rstrip()[-20:]
         )
@@ -351,6 +359,7 @@ class AutoWorkflowManager:
                 agent.config.system_message = agent.config.system_message + "\n\n" + skills_prompt
             else:
                 agent.config.system_message = get_default_system_message(agent.type) + "\n\n" + skills_prompt
+
         return agent
 
     def load(self, agent: Any) -> autogen.Agent:
@@ -370,6 +379,7 @@ class AutoWorkflowManager:
 
         linked_agents = agent.get("agents", [])
         agent = self.sanitize_agent(agent)
+
         if agent.type == "groupchat":
             groupchat_agents = [self.load(agent) for agent in linked_agents]
             group_chat_config = self._serialize_agent(agent)
@@ -388,6 +398,7 @@ class AutoWorkflowManager:
 
         else:
             if agent.type == "assistant":
+                tools = agent.tools
                 agent = ExtendedConversableAgent(
                     **self._serialize_agent(agent),
                     message_processor=self.process_message,
@@ -396,6 +407,17 @@ class AutoWorkflowManager:
                     a_human_input_timeout=self.a_human_input_timeout,
                     connection_id=self.connection_id,
                 )
+                if tools:
+                    for tool in tools:
+                        func = create_dynamic_function(function_name=tool.name, args_info=tool.args_info, method=tool.method, url=tool.url, auth_provider_id=tool.auth_provider_id)
+                        agent.register_for_llm(name=tool.name, description=tool.description)(func)
+
+                        if self.tool_agent:
+                            self.tool_agent.register_for_execution(name=tool.name)(func)
+                            for _tool in self.tool_list:
+                                self.tool_agent.register_for_execution(name=_tool["name"])(_tool["func"])
+                        else:
+                            self.tool_list.append({"name": tool.name, "func": func})
             elif agent.type == "userproxy":
                 agent = ExtendedConversableAgent(
                     **self._serialize_agent(agent),
@@ -407,6 +429,9 @@ class AutoWorkflowManager:
                 )
             else:
                 raise ValueError(f"Unknown agent type: {agent.type}")
+
+            if agent.name == "tool_agent":
+                self.tool_agent = agent
             return agent
 
     def _generate_output(

@@ -157,7 +157,7 @@ def init_db_samples(dbmanager: Any):
         description="OpenAI gpt-40-mini model",
         user_id="guestuser@gmail.com",
         api_type="open_ai",
-        api_key=os.getenv("OPEN_KEY")
+        api_key=os.getenv("OPEN_KEY"),
     )
 
     # skills
@@ -261,6 +261,56 @@ def summary_content(content: str) -> str:
     )
 
     # tools
+    confluence_search_tool = Tool(
+        name="confluence_search_tool",
+        description="Confluence Search",
+        user_id="guestuser@gmail.com",
+        method="get",
+        url="http://localhost:7700/plugin/api/v1/confluence/search",
+        args_info={"query": "str"},
+        auth_provider_id="confluence"
+    )
+
+    jira_issue_create_tool = Tool(
+        name="jira_issue_create_tool",
+        description="Jira Issue Create",
+        user_id="guestuser@gmail.com",
+        method="post",
+        url="http://localhost:7700/plugin/api/v1/jira/create",
+        args_info={
+                        "summary": "str",
+                        "description": "str",
+                        "projectKey": "str | None = 'GAI21'",
+                        "issuetype": "str | None = 'Story'",
+                    },
+        auth_provider_id="jira"
+    )
+
+    search_employee_tool = Tool(
+        name="search_employee_tool",
+        description="Search knox employee information.",
+        user_id="guestuser@gmail.com",
+        method="get",
+        url="http://localhost:7700/plugin/api/v1/knox/search-employee",
+        args_info={"nickname": "str"},
+        auth_provider_id="knox"
+    )
+
+    send_knox_email_tool = Tool(
+        name="send_knox_email_tool",
+        description="Send Knox mail",
+        user_id="guestuser@gmail.com",
+        method="post",
+        url="http://localhost:7700/plugin/api/v1/knox/send-mail",
+        args_info={
+                        "sender": "str",
+                        "recipients": "list[str]",
+                        "title": "str",
+                        "content": "str",
+                    },
+        auth_provider_id="knox"
+    )
+
     summary_content_tool = Tool(
         name="summary_content_tool",
         description="Summary Content Tool",
@@ -287,6 +337,20 @@ def summary_content(content: str) -> str:
         user_id="guestuser@gmail.com", type=AgentType.userproxy, config=user_proxy_config.model_dump(mode="json")
     )
 
+    tool_config = AgentConfig(
+        name="tool_agent",
+        description="Tool Agent Configuration",
+        human_input_mode="NEVER",
+        max_consecutive_auto_reply=25,
+        system_message="You are a tool executor.",
+        code_execution_config=CodeExecutionConfigTypes.none,
+        default_auto_reply="TERMINATE",
+        llm_config=False,
+    )
+    tool_agent = Agent(
+        user_id="guestuser@gmail.com", type=AgentType.assistant, config=tool_config.model_dump(mode="json")
+    )
+
     confluence_agent_config = AgentConfig(
         name="confluence_agent",
         description="Confluence Assistant Agent. Solve the problem related to confluence",
@@ -294,7 +358,9 @@ def summary_content(content: str) -> str:
         max_consecutive_auto_reply=25,
         system_message=AssistantAgent.DEFAULT_SYSTEM_MESSAGE,
         code_execution_config=CodeExecutionConfigTypes.none,
-        llm_config={},
+        llm_config={
+            "temperature": 0
+        },
     )
     confluence_agent = Agent(
         user_id="guestuser@gmail.com", type=AgentType.assistant, config=confluence_agent_config.model_dump(mode="json")
@@ -307,7 +373,9 @@ def summary_content(content: str) -> str:
         max_consecutive_auto_reply=25,
         system_message=AssistantAgent.DEFAULT_SYSTEM_MESSAGE,
         code_execution_config=CodeExecutionConfigTypes.none,
-        llm_config={},
+        llm_config={
+            "temperature": 0
+        },
     )
     jira_agent = Agent(
         user_id="guestuser@gmail.com", type=AgentType.assistant, config=jira_agent_config.model_dump(mode="json")
@@ -320,7 +388,9 @@ def summary_content(content: str) -> str:
         max_consecutive_auto_reply=25,
         system_message=AssistantAgent.DEFAULT_SYSTEM_MESSAGE,
         code_execution_config=CodeExecutionConfigTypes.none,
-        llm_config={},
+        llm_config={
+            "temperature": 0
+        },
     )
     knox_agent = Agent(
         user_id="guestuser@gmail.com", type=AgentType.assistant, config=knox_agent_config.model_dump(mode="json")
@@ -333,7 +403,9 @@ def summary_content(content: str) -> str:
         max_consecutive_auto_reply=25,
         system_message=AssistantAgent.DEFAULT_SYSTEM_MESSAGE,
         code_execution_config=CodeExecutionConfigTypes.none,
-        llm_config={},
+        llm_config={
+            "temperature": 0
+        },
     )
     summary_agent = Agent(
         user_id="guestuser@gmail.com", type=AgentType.assistant, config=summary_agent_config.model_dump(mode="json")
@@ -370,17 +442,22 @@ def summary_content(content: str) -> str:
         session.add(gpt_4o_mini)
 
         # skill
-        session.add(confluence_search)
-        session.add(jira_issue_create)
-        session.add(send_knox_email)
-        session.add(search_employee)
-        session.add(summary_content)
+        # session.add(confluence_search)
+        # session.add(jira_issue_create)
+        # session.add(send_knox_email)
+        # session.add(search_employee)
+        # session.add(summary_content)
 
         # tool
+        session.add(confluence_search_tool)
+        session.add(jira_issue_create_tool)
+        session.add(send_knox_email_tool)
+        session.add(search_employee_tool)
         session.add(summary_content_tool)
 
         # agent
         session.add(user_proxy_agent)
+        session.add(tool_agent)
         session.add(confluence_agent)
         session.add(jira_agent)
         session.add(knox_agent)
@@ -395,19 +472,24 @@ def summary_content(content: str) -> str:
         dbmanager.link(link_type="agent_model", primary_id=knox_agent.id, secondary_id=gpt_4o_mini.id)
         dbmanager.link(link_type="agent_model", primary_id=summary_agent.id, secondary_id=gpt_4o_mini.id)
 
-        dbmanager.link(link_type="agent_skill", primary_id=confluence_agent.id, secondary_id=confluence_search.id)
-        dbmanager.link(link_type="agent_skill", primary_id=jira_agent.id, secondary_id=jira_issue_create.id)
-        dbmanager.link(link_type="agent_skill", primary_id=knox_agent.id, secondary_id=search_employee.id)
-        dbmanager.link(link_type="agent_skill", primary_id=knox_agent.id, secondary_id=send_knox_email.id)
-        dbmanager.link(link_type="agent_skill", primary_id=summary_agent.id, secondary_id=summary_content.id)
+        # dbmanager.link(link_type="agent_skill", primary_id=confluence_agent.id, secondary_id=confluence_search.id)
+        # dbmanager.link(link_type="agent_skill", primary_id=jira_agent.id, secondary_id=jira_issue_create.id)
+        # dbmanager.link(link_type="agent_skill", primary_id=knox_agent.id, secondary_id=search_employee.id)
+        # dbmanager.link(link_type="agent_skill", primary_id=knox_agent.id, secondary_id=send_knox_email.id)
+        # dbmanager.link(link_type="agent_skill", primary_id=summary_agent.id, secondary_id=summary_content.id)
 
         # link agent to tool
+        dbmanager.link(link_type="agent_tool", primary_id=confluence_agent.id, secondary_id=confluence_search_tool.id)
+        dbmanager.link(link_type="agent_tool", primary_id=jira_agent.id, secondary_id=jira_issue_create_tool.id)
+        dbmanager.link(link_type="agent_tool", primary_id=knox_agent.id, secondary_id=send_knox_email_tool.id)
+        dbmanager.link(link_type="agent_tool", primary_id=knox_agent.id, secondary_id=search_employee_tool.id)
         dbmanager.link(link_type="agent_tool", primary_id=summary_agent.id, secondary_id=summary_content_tool.id)
 
 
         # link agents to travel groupchat agent
 
         dbmanager.link(link_type="agent_agent", primary_id=yolo_groupchat_agent.id, secondary_id=user_proxy_agent.id)
+        dbmanager.link(link_type="agent_agent", primary_id=yolo_groupchat_agent.id, secondary_id=tool_agent.id)
         dbmanager.link(link_type="agent_agent", primary_id=yolo_groupchat_agent.id, secondary_id=confluence_agent.id)
         dbmanager.link(link_type="agent_agent", primary_id=yolo_groupchat_agent.id, secondary_id=jira_agent.id)
         dbmanager.link(link_type="agent_agent", primary_id=yolo_groupchat_agent.id, secondary_id=knox_agent.id)
