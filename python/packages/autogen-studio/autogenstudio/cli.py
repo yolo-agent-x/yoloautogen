@@ -5,7 +5,7 @@ import typer
 import uvicorn
 from typing_extensions import Annotated
 
-from autogenstudio.version import VERSION
+import version
 
 app = typer.Typer()
 
@@ -87,7 +87,7 @@ def version():
     Print the version of the AutoGen Studio UI CLI.
     """
 
-    typer.echo(f"AutoGen Studio  CLI version: {VERSION}")
+    typer.echo(f"AutoGen Studio  CLI version: {version.VERSION}")
 
 
 def run():
