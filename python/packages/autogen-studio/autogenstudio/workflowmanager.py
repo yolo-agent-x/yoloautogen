@@ -296,7 +296,7 @@ class AutoWorkflowManager:
         """
         if self.receiver.name == "chat_manager":
             def delete_datetime(history_msg):
-                if isinstance(msg, dict):
+                if isinstance(history_msg, dict):
                     del history_msg["created_at"], history_msg["updated_at"]
                 return history_msg
             history_msgs = [delete_datetime(history_msg) for history_msg in history]
