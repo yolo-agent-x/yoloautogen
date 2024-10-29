@@ -208,7 +208,7 @@ class AgentConfig(SQLModel, table=False):
     messages: Optional[List[Dict]] = Field(default_factory=list)
     max_round: Optional[int] = 100
     speaker_selection_method: Optional[str] = "auto"
-    allow_repeat_speaker: Optional[Union[bool, List["AgentConfig"]]] = True
+    allow_repeat_speaker: Optional[Union[bool, List["AgentConfig"]]] = False
 
 
 class AgentType(str, Enum):

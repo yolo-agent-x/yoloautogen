@@ -352,12 +352,14 @@ def summary_content(content: str) -> str:
     user_proxy_config = AgentConfig(
         name="user_proxy_agent",
         description="User Proxy Agent Configuration",
-        human_input_mode="NEVER",
+        human_input_mode="TERMINATE",
         max_consecutive_auto_reply=25,
         system_message="You are a helpful assistant",
         code_execution_config=CodeExecutionConfigTypes.local,
-        default_auto_reply="TERMINATE",
-        llm_config=False,
+        default_auto_reply="",
+        llm_config={
+            "temperature": 0
+        },
     )
     user_proxy_agent = Agent(
         user_id="guestuser@gmail.com", type=AgentType.userproxy, config=user_proxy_config.model_dump(mode="json")
@@ -375,7 +377,9 @@ def summary_content(content: str) -> str:
         """,
         code_execution_config=CodeExecutionConfigTypes.none,
         default_auto_reply="TERMINATE",
-        llm_config=False,
+        llm_config={
+            "temperature": 0
+        },
     )
     tool_agent = Agent(
         user_id="guestuser@gmail.com", type=AgentType.assistant, config=tool_config.model_dump(mode="json")
@@ -386,7 +390,7 @@ def summary_content(content: str) -> str:
         description="Confluence Assistant Agent. Solve the problem related to confluence",
         human_input_mode="NEVER",
         max_consecutive_auto_reply=25,
-        system_message=default_system_message,
+        system_message="You are a helpful Confluence assistant. You can help with searching in confluence." + default_system_message,
         code_execution_config=CodeExecutionConfigTypes.none,
         llm_config={
             "temperature": 0
@@ -401,7 +405,7 @@ def summary_content(content: str) -> str:
         description="Jira Assistant Agent. Solve the problem related to jira",
         human_input_mode="NEVER",
         max_consecutive_auto_reply=25,
-        system_message=default_system_message,
+        system_message="You are a helpful Jira assistant. You can help with creating jira issue." + default_system_message,
         code_execution_config=CodeExecutionConfigTypes.none,
         llm_config={
             "temperature": 0
@@ -416,7 +420,11 @@ def summary_content(content: str) -> str:
         description="Knox Assistant Agent. Solve the problem related to knox",
         human_input_mode="NEVER",
         max_consecutive_auto_reply=25,
-        system_message=default_system_message,
+        system_message="""
+        You are a helpful Knox assistant. You can help with knox service (sending email, searching employee).
+        !!IMPORTANT!! When sending an email, must use the Employee Search API to retrieve recipient information.
+        !!IMPORTANT!! When you don't know who to send the email to, ask to User.
+        """ + default_system_message,
         code_execution_config=CodeExecutionConfigTypes.none,
         llm_config={
             "temperature": 0
@@ -431,7 +439,7 @@ def summary_content(content: str) -> str:
         description="Summary Assistant Agent. Summary the content",
         human_input_mode="NEVER",
         max_consecutive_auto_reply=25,
-        system_message=default_system_message,
+        system_message="You are a helpful summary assistant. You can help with creating summary content." + default_system_message,
         code_execution_config=CodeExecutionConfigTypes.none,
         llm_config={
             "temperature": 0
