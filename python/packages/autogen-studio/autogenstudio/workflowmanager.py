@@ -260,6 +260,8 @@ class AutoWorkflowManager:
         """
 
         message = message if isinstance(message, dict) else {"content": message, "role": "user"}
+        if message.get("content") is None and message.get("tool_calls"):
+            message["content"] = "\n\n".join(f"tool_name: {tool.get('function', {}).get('name', '')}\n arguments: {tool.get('function', {}).get('arguments', '')}" for tool in message["tool_calls"])
         message_payload = {
             "recipient": receiver.name,
             "sender": sender.name,
