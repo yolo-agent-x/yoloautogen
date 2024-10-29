@@ -94,7 +94,7 @@ class AutoWorkflowManager:
         self.sender = None
         self.receiver = None
         self.tool_agent = None
-        self.tool_list = []
+        self.pending_tool_list = []
 
     def _run_workflow(self, message: str, history: Optional[List[Message]] = None, clear_history: bool = False) -> None:
         """
@@ -414,10 +414,11 @@ class AutoWorkflowManager:
 
                         if self.tool_agent:
                             self.tool_agent.register_for_execution(name=tool.name)(func)
-                            for _tool in self.tool_list:
+                            for _tool in self.pending_tool_list:
                                 self.tool_agent.register_for_execution(name=_tool["name"])(_tool["func"])
+                            self.pending_tool_list = []
                         else:
-                            self.tool_list.append({"name": tool.name, "func": func})
+                            self.pending_tool_list.append({"name": tool.name, "func": func})
             elif agent.type == "userproxy":
                 agent = ExtendedConversableAgent(
                     **self._serialize_agent(agent),
