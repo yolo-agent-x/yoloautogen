@@ -294,23 +294,32 @@ class AutoWorkflowManager:
         Args:
             history: A list of messages to populate the agents' history.
         """
-        for msg in history:
-            if isinstance(msg, dict):
-                msg = Message(**msg)
-            if msg.role == "user":
-                self.sender.send(
-                    msg.content,
-                    self.receiver,
-                    request_reply=False,
-                    silent=True,
-                )
-            elif msg.role == "assistant":
-                self.receiver.send(
-                    msg.content,
-                    self.sender,
-                    request_reply=True,
-                    silent=True,
-                )
+        if self.receiver.name == "chat_manager":
+            def delete_datetime(history_msg):
+                if isinstance(msg, dict):
+                    del history_msg["created_at"], history_msg["updated_at"]
+                return history_msg
+            history_msgs = [delete_datetime(history_msg) for history_msg in history]
+            self.receiver.resume(messages=history_msgs, remove_termination_string="TERMINATE")
+        else:
+            for msg in history:
+                if isinstance(msg, dict):
+                    msg = Message(**msg)
+                if msg.role == "user":
+                    self.sender.send(
+                        msg.content,
+                        self.receiver,
+                        request_reply=False,
+                        silent=True,
+                    )
+
+                elif msg.role == "assistant":
+                    self.receiver.send(
+                        msg.content,
+                        self.sender,
+                        request_reply=False,
+                        silent=True,
+                    )
 
     def sanitize_agent(self, agent: Dict) -> Agent:
         """ """
