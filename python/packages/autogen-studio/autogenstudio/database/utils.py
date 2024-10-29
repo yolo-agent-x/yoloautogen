@@ -27,6 +27,32 @@ from ..datamodel import (
     Tool,
 )
 
+default_system_message = """
+     You are responsible for extracting accurate parameters necessary for ToolAgent’s task execution.
+     !!IMPORTANT!! You should try your best to extract the correct parameters from the request.
+     !!IMPORTANT!!If information is insufficient or unclear, they must request clarification from the user, ending each query with "TERMINATE".
+     Once the task results are received, they review and verify the completion before passing the summary to the UserProxy. The final summary after all steps should also end with "TERMINATE".
+     !!IMPORTANT!! please use korean when you ask
+
+     Few-Shot Example:
+
+     1) User Input:
+     "Check today's weather in Seoul."
+     Agent: Extracts like {"location":"seoul"} and forwards to ToolAgent "
+
+     2) Check for missing parameters
+     "Book a table at the nearest Italian restaurant."
+     Agent: Identifies missing information and requests clarification from the user "Could you specify the number of people and time for the reservation? TERMINATE."
+
+     3) Check for specific parameters:
+     "Get the latest news."        
+     Agent: Requests further clarification from the user "Could you specify the news category or region of interest? TERMINATE."
+
+     4) After Task Completion:
+     After all steps are completed, Parameter Agent provides a final summary to the user
+     Agent: Requested tasks have been completed. The weather was checked, and your reservation was made. TERMINATE.
+     """
+
 
 def workflow_from_id(workflow_id: int, dbmanager: Any):
     workflow = dbmanager.get(Workflow, filters={"id": workflow_id}).data
@@ -342,7 +368,11 @@ def summary_content(content: str) -> str:
         description="Tool Agent Configuration",
         human_input_mode="NEVER",
         max_consecutive_auto_reply=25,
-        system_message="You are a tool executor.",
+        system_message="""
+        The ToolAgent executes tasks based on specific parameters provided by the Parameter Agent and returns the results to the requesting agent.
+        The ToolAgent does not modify parameters or request clarification; it focuses solely on executing the task as directed and returning the outcome.
+        You only execute single function at once. 
+        """,
         code_execution_config=CodeExecutionConfigTypes.none,
         default_auto_reply="TERMINATE",
         llm_config=False,
@@ -356,7 +386,7 @@ def summary_content(content: str) -> str:
         description="Confluence Assistant Agent. Solve the problem related to confluence",
         human_input_mode="NEVER",
         max_consecutive_auto_reply=25,
-        system_message=AssistantAgent.DEFAULT_SYSTEM_MESSAGE,
+        system_message=default_system_message,
         code_execution_config=CodeExecutionConfigTypes.none,
         llm_config={
             "temperature": 0
@@ -371,7 +401,7 @@ def summary_content(content: str) -> str:
         description="Jira Assistant Agent. Solve the problem related to jira",
         human_input_mode="NEVER",
         max_consecutive_auto_reply=25,
-        system_message=AssistantAgent.DEFAULT_SYSTEM_MESSAGE,
+        system_message=default_system_message,
         code_execution_config=CodeExecutionConfigTypes.none,
         llm_config={
             "temperature": 0
@@ -386,7 +416,7 @@ def summary_content(content: str) -> str:
         description="Knox Assistant Agent. Solve the problem related to knox",
         human_input_mode="NEVER",
         max_consecutive_auto_reply=25,
-        system_message=AssistantAgent.DEFAULT_SYSTEM_MESSAGE,
+        system_message=default_system_message,
         code_execution_config=CodeExecutionConfigTypes.none,
         llm_config={
             "temperature": 0
@@ -401,7 +431,7 @@ def summary_content(content: str) -> str:
         description="Summary Assistant Agent. Summary the content",
         human_input_mode="NEVER",
         max_consecutive_auto_reply=25,
-        system_message=AssistantAgent.DEFAULT_SYSTEM_MESSAGE,
+        system_message=default_system_message,
         code_execution_config=CodeExecutionConfigTypes.none,
         llm_config={
             "temperature": 0

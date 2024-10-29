@@ -143,7 +143,7 @@ class AutoWorkflowManager:
                 self.receiver = self.load(agent.get("agent"))
         if self.sender and self.receiver:
             # save all agent skills to skills.py
-            save_skills_to_file(self.workflow_skills, self.work_dir)
+            # save_skills_to_file(self.workflow_skills, self.work_dir)
             if history:
                 self._populate_history(history)
             await self.sender.a_initiate_chat(
@@ -272,7 +272,8 @@ class AutoWorkflowManager:
         # if the agent will respond to the message, or the message is sent by a groupchat agent.
         # This avoids adding groupchat broadcast messages to the history (which are sent with request_reply=False),
         # or when agent populated from history
-        if request_reply is not False or sender_type == "groupchat":
+        if request_reply is not False or sender_type == "groupchat" or (sender_type == "agent" and message_payload.get("recipient") == 'chat_manager' ) :
+            print("message!!! :::", request_reply , sender_type , message_payload)
             self.agent_history.append(message_payload)  # add to history
             socket_msg = SocketMessage(
                 type="agent_message",
@@ -305,7 +306,7 @@ class AutoWorkflowManager:
                 self.receiver.send(
                     msg.content,
                     self.sender,
-                    request_reply=False,
+                    request_reply=True,
                     silent=True,
                 )
 
