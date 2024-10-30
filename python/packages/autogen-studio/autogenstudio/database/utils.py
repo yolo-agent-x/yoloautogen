@@ -180,7 +180,7 @@ def init_db_samples(dbmanager: Any):
     # models
     gpt_4o_mini = Model(
         model="gpt-4o-mini",
-        description="OpenAI gpt-40-mini model",
+        description="OpenAI gpt-4o-mini model",
         user_id="guestuser@gmail.com",
         api_type="open_ai",
         api_key=os.getenv("OPEN_KEY"),
@@ -459,7 +459,9 @@ def summary_content(content: str) -> str:
         system_message="You are a group chat manager",
         code_execution_config=CodeExecutionConfigTypes.none,
         default_auto_reply="TERMINATE",
-        llm_config={},
+        llm_config={
+            "temperature": 0
+        },
         speaker_selection_method="auto",
     )
     yolo_groupchat_agent = Agent(
