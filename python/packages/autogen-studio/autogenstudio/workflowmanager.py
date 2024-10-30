@@ -24,7 +24,7 @@ from .utils import (
     load_code_execution_config,
     sanitize_model,
     save_skills_to_file,
-    summarize_chat_history,
+    summarize_chat_history, remove_keyword_string,
 )
 from .utils.function_create_util import create_dynamic_function
 
@@ -573,7 +573,7 @@ class AutoWorkflowManager:
 
         usage = self._get_usage_summary()
         # print("usage", usage)
-
+        output = remove_keyword_string(output,"TERMINATE")
         result_message = Message(
             content=output,
             role="assistant",
