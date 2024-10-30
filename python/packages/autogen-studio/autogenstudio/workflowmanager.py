@@ -295,11 +295,11 @@ class AutoWorkflowManager:
             history: A list of messages to populate the agents' history.
         """
         if self.receiver.name == "chat_manager":
-            def delete_datetime(history_msg):
-                if isinstance(history_msg, dict):
-                    del history_msg["created_at"], history_msg["updated_at"]
-                return history_msg
-            history_msgs = [delete_datetime(history_msg) for history_msg in history]
+            history_msgs = [
+                meta_message["message"]
+                for history_msg in history
+                for meta_message in history_msg.get("meta", {}).get("messages", [])
+            ]
             self.receiver.resume(messages=history_msgs, remove_termination_string="TERMINATE")
         else:
             for msg in history:
