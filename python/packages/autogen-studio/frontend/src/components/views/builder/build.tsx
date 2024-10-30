@@ -34,7 +34,7 @@ const BuildView = () => {
                       <div className="w-full  ">
                           {" "}
                           <MicrophoneIcon className="h-4 w-4 inline-block mr-1"/>
-                          ToolsView
+                          Tools
                       </div>
                   ),
                   key: "0",
