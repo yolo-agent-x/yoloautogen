@@ -329,10 +329,10 @@ def summary_content(content: str) -> str:
         method="post",
         url="http://localhost:7700/plugin/api/v1/knox/send-mail",
         args_info={
-                        "sender": "str",
                         "recipients": "list[str]",
                         "title": "str",
                         "content": "str",
+                        "sender": "str = 'yolo@yolo.com'",
                     },
         auth_provider_id="knox"
     )
@@ -352,7 +352,7 @@ def summary_content(content: str) -> str:
     user_proxy_config = AgentConfig(
         name="user_proxy_agent",
         description="User Proxy Agent Configuration",
-        human_input_mode="TERMINATE",
+        human_input_mode="NEVER",
         max_consecutive_auto_reply=25,
         system_message="You are a helpful assistant",
         code_execution_config=CodeExecutionConfigTypes.local,
