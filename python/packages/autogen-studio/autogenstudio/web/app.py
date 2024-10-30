@@ -15,7 +15,7 @@ from openai import OpenAIError
 from ..chatmanager import AutoGenChatManager
 from ..database import workflow_from_id
 from ..database.dbmanager import DBManager
-from ..datamodel import Agent, Message, Model, Response, Session, Skill, Workflow
+from ..datamodel import Agent, Message, Model, Response, Session, Skill, Workflow, Tool
 from ..profiler import Profiler
 from ..utils import check_and_cast_datetime_fields, init_app_folders, sha256_hash, test_model
 from ..version import VERSION
@@ -175,6 +175,27 @@ async def delete_skill(skill_id: int, user_id: str):
     filters = {"id": skill_id, "user_id": user_id}
     return delete_entity(Skill, filters=filters)
 
+@api.get("/tools")
+async def list_tools(user_id: str):
+    """List all tools for a user"""
+    filters = {"user_id": user_id}
+    return list_entity(Tool, filters=filters)
+
+
+@api.post("/tools")
+async def create_tool(tool: Tool):
+    """Create a new tool"""
+    filters = {"user_id": tool.user_id}
+    return create_entity(tool, Tool, filters=filters)
+
+
+@api.delete("/tools/delete")
+async def delete_tool(tool_id: int, user_id: str):
+    """Delete a tool"""
+    filters = {"id": tool_id, "user_id": user_id}
+    return delete_entity(Tool, filters=filters)
+
+
 
 @api.get("/models")
 async def list_models(user_id: str):
@@ -267,6 +288,24 @@ async def unlink_agent_skill(agent_id: int, skill_id: int):
 async def get_agent_skills(agent_id: int):
     """Get all skills linked to an agent"""
     return dbmanager.get_linked_entities("agent_skill", agent_id, return_json=True)
+
+
+@api.post("/agents/link/tool/{agent_id}/{tool_id}")
+async def link_agent_tool(agent_id: int, tool_id: int):
+    """Link a tool to an agent"""
+    return dbmanager.link(link_type="agent_tool", primary_id=agent_id, secondary_id=tool_id)
+
+
+@api.delete("/agents/link/tool/{agent_id}/{tool_id}")
+async def unlink_agent_tool(agent_id: int, tool_id: int):
+    """Unlink a tool from an agent"""
+    return dbmanager.unlink(link_type="agent_tool", primary_id=agent_id, secondary_id=tool_id)
+
+
+@api.get("/agents/link/tool/{agent_id}")
+async def get_agent_tools(agent_id: int):
+    """Get all tools linked to an agent"""
+    return dbmanager.get_linked_entities("agent_tool", agent_id, return_json=True)
 
 
 @api.post("/agents/link/agent/{primary_agent_id}/{secondary_agent_id}")
