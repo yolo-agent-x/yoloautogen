@@ -15,13 +15,14 @@ import {
   BugAntIcon,
   CpuChipIcon,
   UserGroupIcon,
+  HeartIcon
 } from "@heroicons/react/24/outline";
 import { appContext } from "../../../../hooks/provider";
 import {
   AgentSelector,
   AgentTypeSelector,
   ModelSelector,
-  SkillSelector,
+  SkillSelector, ToolSelector,
 } from "./selectors";
 import { IAgent, ILLMConfig } from "../../../types";
 import TextArea from "antd/es/input/TextArea";
@@ -501,6 +502,18 @@ export const AgentViewer = ({
         key: "4",
         children: <SkillSelector agentId={agent?.id} />,
       });
+
+      items.push({
+        label: (
+            <>
+              <HeartIcon className="h-4 w-4 inline-block mr-1" />
+              Skills
+            </>
+        ),
+        key: "5",
+        children: <ToolSelector agentId={agent?.id} />,
+      });
+
     }
   }
 

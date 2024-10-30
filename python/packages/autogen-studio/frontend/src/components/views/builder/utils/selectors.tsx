@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { IAgent, IModelConfig, ISkill, IWorkflow } from "../../../types";
+import {IAgent, IModelConfig, ISkill, ITool, IWorkflow} from "../../../types";
 import { Card } from "../../../atoms";
 import {
   fetchJSON,
@@ -32,6 +32,267 @@ import {
 import { appContext } from "../../../../hooks/provider";
 
 const { useToken } = theme;
+
+export const ToolSelector = ({ agentId }: { agentId: number }) => {
+  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState<boolean>(false);
+  const [tools, setTools] = useState<ITool[]>([]);
+  const [agentTools, setAgentTools] = useState<ITool[]>([]);
+  const serverUrl = getServerUrl();
+  const { user } = React.useContext(appContext);
+  const listToolsUrl = `${serverUrl}/tools?user_id=${user?.email}`;
+  const listAgentToolsUrl = `${serverUrl}/agents/link/tool/${agentId}`;
+
+  const fetchTools = () => {
+    setError(null);
+    setLoading(true);
+
+    const payLoad = {
+      method: "GET",
+      headers: {
+        "Content-Type": "application/json",
+      },
+    };
+
+    const onSuccess = (data: any) => {
+      if (data && data.status) {
+        setTools(data.data);
+      } else {
+        message.error(data.message);
+      }
+      setLoading(false);
+    };
+
+    const onError = (err: any) => {
+      setError(err);
+      message.error(err.message);
+      setLoading(false);
+    };
+
+    fetchJSON(listToolsUrl, payLoad, onSuccess, onError);
+  };
+
+  const fetchAgentTools = () => {
+    setError(null);
+    setLoading(true);
+
+    const payLoad = {
+      method: "GET",
+      headers: {
+        "Content-Type": "application/json",
+      },
+    };
+
+    const onSuccess = (data: any) => {
+      if (data && data.status) {
+        setAgentTools(data.data);
+      } else {
+        message.error(data.message);
+      }
+      setLoading(false);
+    };
+
+    const onError = (err: any) => {
+      setError(err);
+      message.error(err.message);
+      setLoading(false);
+    };
+
+    fetchJSON(listAgentToolsUrl, payLoad, onSuccess, onError);
+  };
+
+  const linkAgentTool = (agentId: number, toolId: number) => {
+    setError(null);
+    setLoading(true);
+    const payLoad = {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+    };
+    const linkToolUrl = `${serverUrl}/agents/link/tool/${agentId}/${toolId}`;
+    const onSuccess = (data: any) => {
+      if (data && data.status) {
+        message.success(data.message);
+        fetchAgentTools();
+      } else {
+        message.error(data.message);
+      }
+      setLoading(false);
+    };
+    const onError = (err: any) => {
+      setError(err);
+      message.error(err.message);
+      setLoading(false);
+    };
+    fetchJSON(linkToolUrl, payLoad, onSuccess, onError);
+  };
+
+  const unLinkAgentTool = (agentId: number, toolId: number) => {
+    setError(null);
+    setLoading(true);
+    const payLoad = {
+      method: "DELETE",
+      headers: {
+        "Content-Type": "application/json",
+      },
+    };
+    const linkToolUrl = `${serverUrl}/agents/link/tool/${agentId}/${toolId}`;
+    const onSuccess = (data: any) => {
+      if (data && data.status) {
+        message.success(data.message);
+        fetchAgentTools();
+      } else {
+        message.error(data.message);
+      }
+      setLoading(false);
+    };
+    const onError = (err: any) => {
+      setError(err);
+      message.error(err.message);
+      setLoading(false);
+    };
+    fetchJSON(linkToolUrl, payLoad, onSuccess, onError);
+  };
+
+  useEffect(() => {
+    fetchTools();
+    fetchAgentTools();
+  }, [agentId]);
+
+  const toolItems: MenuProps["items"] = tools.map((tool, index) => ({
+    key: index,
+    label: (
+        <>
+          <div>{tool.name}</div>
+          <div className="text-xs text-accent">
+            {truncateText(tool.description || "", 20)}
+          </div>
+        </>
+    ),
+    value: index,
+  }));
+
+  const toolOnClick: MenuProps["onClick"] = ({ key }) => {
+    const selectedIndex = parseInt(key.toString());
+    let selectedTool = tools[selectedIndex];
+
+    if (selectedTool && selectedTool.id) {
+      linkAgentTool(agentId, selectedTool.id);
+    }
+  };
+
+  const { token } = useToken();
+  const contentStyle: React.CSSProperties = {
+    backgroundColor: token.colorBgElevated,
+    borderRadius: token.borderRadiusLG,
+    boxShadow: token.boxShadowSecondary,
+  };
+
+  const handleRemoveTool = (index: number) => {
+    const tool = agentTools[index];
+    if (tool && tool.id) {
+      unLinkAgentTool(agentId, tool.id);
+    }
+  };
+
+  const AddToolsDropDown = () => {
+    return (
+        <Dropdown
+            menu={{ items: toolItems, onClick: toolOnClick }}
+            placement="bottomRight"
+            trigger={["click"]}
+            dropdownRender={(menu) => (
+                <div style={contentStyle}>
+                  {React.cloneElement(menu as React.ReactElement, {
+                    style: { boxShadow: "none" },
+                  })}
+                  {tools.length === 0 && (
+                      <>
+                        <Divider style={{ margin: 0 }} />
+                        <Space style={{ padding: 8 }}></Space>
+                        <div className="p-3">
+                          {" "}
+                          <span className="text-xs">
+                    <ExclamationTriangleIcon className="w-4 h-4 inline-block mr-1" />{" "}
+                            Please create tools in the tools tab
+                  </span>
+                        </div>
+                      </>
+                  )}
+                </div>
+            )}
+        >
+          <div
+              className="inline-flex mr-1 mb-1 p-1 px-2 rounded border hover:border-accent duration-300 hover:text-accent"
+              role="button"
+          >
+            add <PlusIcon className="w-4 h-4 inline-block mt-1" />
+          </div>
+        </Dropdown>
+    );
+  };
+
+  const agentToolButtons = agentTools.map((tool, i) => {
+    const tooltipText = (
+        <>
+          <div>{tool.name}</div>
+          <div className="text-xs text-accent">
+            {truncateText(tool.description || "", 90)}
+          </div>
+        </>
+    );
+    return (
+        <div
+            key={"toolrow_" + i}
+            // role="button"
+            className="mr-1 mb-1 p-1 px-2 rounded border"
+            // onClick={() => showModal(config, i)}
+        >
+          <div className="inline-flex">
+            {" "}
+            <Tooltip title={tooltipText}>
+              <div>{tool.name}</div>{" "}
+            </Tooltip>
+            <div
+                role="button"
+                onClick={(e) => {
+                  e.stopPropagation(); // Prevent opening the modal to edit
+                  handleRemoveTool(i);
+                }}
+                className="ml-1 text-primary hover:text-accent duration-300"
+            >
+              <XMarkIcon className="w-4 h-4 inline-block" />
+            </div>
+          </div>
+        </div>
+    );
+  });
+
+  return (
+      <div>
+        {agentTools && agentTools.length > 0 && (
+            <div className="mb-2">
+              <span className="text-accent">{agentTools.length}</span> Tools
+              linked to this agent
+            </div>
+        )}
+
+        {(!agentTools || agentTools.length === 0) && (
+            <div className="text-sm border rounded text-secondary p-2 my-2">
+              <InformationCircleIcon className="h-4 w-4 inline mr-1" /> No tools
+              currently linked to this agent. Please add a tool using the button
+              below.
+            </div>
+        )}
+
+        <div className="flex flex-wrap">
+          {agentToolButtons}
+          <AddToolsDropDown />
+        </div>
+      </div>
+  );
+};
 
 export const SkillSelector = ({ agentId }: { agentId: number }) => {
   const [error, setError] = useState<string | null>(null);
