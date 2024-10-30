@@ -337,15 +337,15 @@ def summary_content(content: str) -> str:
         auth_provider_id="knox"
     )
 
-    summary_content_tool = Tool(
-        name="summary_content_tool",
-        description="Summary Content Tool",
-        user_id="guestuser@gmail.com",
-        method="post",
-        url="http://localhost:7700/plugin/api/v1/summary",
-        args_info={"content": "str"},
-        auth_provider_id="summary"
-    )
+    # summary_content_tool = Tool(
+    #     name="summary_content_tool",
+    #     description="Summary Content Tool",
+    #     user_id="guestuser@gmail.com",
+    #     method="post",
+    #     url="http://localhost:7700/plugin/api/v1/summary",
+    #     args_info={"content": "str"},
+    #     auth_provider_id="summary"
+    # )
 
     # agents
 
@@ -434,19 +434,21 @@ def summary_content(content: str) -> str:
         user_id="guestuser@gmail.com", type=AgentType.assistant, config=knox_agent_config.model_dump(mode="json")
     )
 
-    summary_agent_config = AgentConfig(
-        name="summary_agent",
-        description="Summary Assistant Agent. Summary the content",
+    general_agent_config = AgentConfig(
+        name="general_agent",
+        description="General Assistant Agent.",
         human_input_mode="NEVER",
         max_consecutive_auto_reply=25,
-        system_message="You are a helpful summary assistant. You can help with creating summary content." + default_system_message,
+        system_message="""You are a helpful AI assistant. 
+        Your role is as follows: First, kindly answer any general questions the user asks. Second, once all other agents have completed their responses, summarize the conversation clearly and provide a briefing. 
+        Reply "TERMINATE" at the end of your answer""",
         code_execution_config=CodeExecutionConfigTypes.none,
         llm_config={
             "temperature": 0
         },
     )
-    summary_agent = Agent(
-        user_id="guestuser@gmail.com", type=AgentType.assistant, config=summary_agent_config.model_dump(mode="json")
+    general_agent = Agent(
+        user_id="guestuser@gmail.com", type=AgentType.assistant, config=general_agent_config.model_dump(mode="json")
     )
 
     # group chat agent
@@ -493,7 +495,7 @@ def summary_content(content: str) -> str:
         session.add(jira_issue_create_tool)
         session.add(send_knox_email_tool)
         session.add(search_employee_tool)
-        session.add(summary_content_tool)
+        # session.add(summary_content_tool)
 
         # agent
         session.add(user_proxy_agent)
@@ -501,7 +503,7 @@ def summary_content(content: str) -> str:
         session.add(confluence_agent)
         session.add(jira_agent)
         session.add(knox_agent)
-        session.add(summary_agent)
+        session.add(general_agent)
         session.add(yolo_groupchat_agent)
 
         session.add(yolo_workflow)
@@ -510,7 +512,7 @@ def summary_content(content: str) -> str:
         dbmanager.link(link_type="agent_model", primary_id=confluence_agent.id, secondary_id=gpt_4o_mini.id)
         dbmanager.link(link_type="agent_model", primary_id=jira_agent.id, secondary_id=gpt_4o_mini.id)
         dbmanager.link(link_type="agent_model", primary_id=knox_agent.id, secondary_id=gpt_4o_mini.id)
-        dbmanager.link(link_type="agent_model", primary_id=summary_agent.id, secondary_id=gpt_4o_mini.id)
+        dbmanager.link(link_type="agent_model", primary_id=general_agent.id, secondary_id=gpt_4o_mini.id)
 
         # dbmanager.link(link_type="agent_skill", primary_id=confluence_agent.id, secondary_id=confluence_search.id)
         # dbmanager.link(link_type="agent_skill", primary_id=jira_agent.id, secondary_id=jira_issue_create.id)
@@ -523,7 +525,7 @@ def summary_content(content: str) -> str:
         dbmanager.link(link_type="agent_tool", primary_id=jira_agent.id, secondary_id=jira_issue_create_tool.id)
         dbmanager.link(link_type="agent_tool", primary_id=knox_agent.id, secondary_id=send_knox_email_tool.id)
         dbmanager.link(link_type="agent_tool", primary_id=knox_agent.id, secondary_id=search_employee_tool.id)
-        dbmanager.link(link_type="agent_tool", primary_id=summary_agent.id, secondary_id=summary_content_tool.id)
+        # dbmanager.link(link_type="agent_tool", primary_id=summary_agent.id, secondary_id=summary_content_tool.id)
 
 
         # link agents to travel groupchat agent
@@ -533,7 +535,7 @@ def summary_content(content: str) -> str:
         dbmanager.link(link_type="agent_agent", primary_id=yolo_groupchat_agent.id, secondary_id=confluence_agent.id)
         dbmanager.link(link_type="agent_agent", primary_id=yolo_groupchat_agent.id, secondary_id=jira_agent.id)
         dbmanager.link(link_type="agent_agent", primary_id=yolo_groupchat_agent.id, secondary_id=knox_agent.id)
-        dbmanager.link(link_type="agent_agent", primary_id=yolo_groupchat_agent.id, secondary_id=summary_agent.id)
+        dbmanager.link(link_type="agent_agent", primary_id=yolo_groupchat_agent.id, secondary_id=general_agent.id)
 
         dbmanager.link(link_type="agent_model", primary_id=yolo_groupchat_agent.id, secondary_id=gpt_4o_mini.id)
 
