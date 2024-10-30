@@ -682,3 +682,19 @@ export const isValidConfig = (
     message: "Configuration is valid.",
   };
 };
+
+
+export const transformObjectToArray = (input: object): Array<any> =>  {
+  return Object.entries(input).map(([key, value]) => ({
+    name: key,
+    value: value
+  }));
+}
+
+
+export  const  transformArrayToObject = (input: Array<any>): object => {
+  return input.reduce((acc, { name, value }) => {
+    acc[name] = value;
+    return acc;
+  }, {} as object);
+}

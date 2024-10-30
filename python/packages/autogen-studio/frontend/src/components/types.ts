@@ -125,3 +125,16 @@ export interface ISkill {
   created_at?: string;
   updated_at?: string;
 }
+
+export interface ITool {
+  id?: number;
+  created_at?: string;
+  updated_at?: string;
+  user_id?: string;
+  name: string;
+  description?: string;
+  method: string;
+  url: string;
+  args_info?: string;
+  auth_provider_id?: string;
+}

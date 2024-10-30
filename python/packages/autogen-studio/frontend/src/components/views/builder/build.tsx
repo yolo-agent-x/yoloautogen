@@ -8,8 +8,10 @@ import {
   CpuChipIcon,
   Square2StackIcon,
   Square3Stack3DIcon,
+    MicrophoneIcon
 } from "@heroicons/react/24/outline";
 import ModelsView from "./models";
+import ToolsView from "./tools";
 
 const BuildView = () => {
   return (
@@ -27,6 +29,17 @@ const BuildView = () => {
           defaultActiveKey="4"
           tabPosition="left"
           items={[
+              {
+                  label: (
+                      <div className="w-full  ">
+                          {" "}
+                          <MicrophoneIcon className="h-4 w-4 inline-block mr-1"/>
+                          ToolsView
+                      </div>
+                  ),
+                  key: "0",
+                  children: <ToolsView/>,
+              },
             {
               label: (
                 <div className="w-full  ">
