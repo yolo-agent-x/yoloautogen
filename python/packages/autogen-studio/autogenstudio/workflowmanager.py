@@ -24,8 +24,9 @@ from .utils import (
     load_code_execution_config,
     sanitize_model,
     save_skills_to_file,
-    summarize_chat_history,
+    summarize_chat_history, remove_keyword_string,
 )
+from .utils.function_create_util import create_dynamic_function
 
 
 class AutoWorkflowManager:
@@ -92,6 +93,8 @@ class AutoWorkflowManager:
         self.history = history or []
         self.sender = None
         self.receiver = None
+        self.tool_agent = None
+        self.pending_tool_list = []
 
     def _run_workflow(self, message: str, history: Optional[List[Message]] = None, clear_history: bool = False) -> None:
         """
@@ -140,7 +143,7 @@ class AutoWorkflowManager:
                 self.receiver = self.load(agent.get("agent"))
         if self.sender and self.receiver:
             # save all agent skills to skills.py
-            save_skills_to_file(self.workflow_skills, self.work_dir)
+            # save_skills_to_file(self.workflow_skills, self.work_dir)
             if history:
                 self._populate_history(history)
             await self.sender.a_initiate_chat(
@@ -257,6 +260,8 @@ class AutoWorkflowManager:
         """
 
         message = message if isinstance(message, dict) else {"content": message, "role": "user"}
+        if message.get("content") is None and message.get("tool_calls"):
+            message["content"] = "\n\n".join(f"tool_name: {tool.get('function', {}).get('name', '')}\n arguments: {tool.get('function', {}).get('arguments', '')}" for tool in message["tool_calls"])
         message_payload = {
             "recipient": receiver.name,
             "sender": sender.name,
@@ -269,7 +274,8 @@ class AutoWorkflowManager:
         # if the agent will respond to the message, or the message is sent by a groupchat agent.
         # This avoids adding groupchat broadcast messages to the history (which are sent with request_reply=False),
         # or when agent populated from history
-        if request_reply is not False or sender_type == "groupchat":
+        if request_reply is not False or sender_type == "groupchat" or (sender_type == "agent" and message_payload.get("recipient") == 'chat_manager' ) :
+            print("message!!! :::", request_reply , sender_type , message_payload)
             self.agent_history.append(message_payload)  # add to history
             socket_msg = SocketMessage(
                 type="agent_message",
@@ -288,28 +294,38 @@ class AutoWorkflowManager:
         Args:
             history: A list of messages to populate the agents' history.
         """
-        for msg in history:
-            if isinstance(msg, dict):
-                msg = Message(**msg)
-            if msg.role == "user":
-                self.sender.send(
-                    msg.content,
-                    self.receiver,
-                    request_reply=False,
-                    silent=True,
-                )
-            elif msg.role == "assistant":
-                self.receiver.send(
-                    msg.content,
-                    self.sender,
-                    request_reply=False,
-                    silent=True,
-                )
+        if self.receiver.name == "chat_manager":
+            history_msgs = [
+                meta_message["message"]
+                for history_msg in history
+                for meta_message in history_msg.get("meta", {}).get("messages", [])
+            ]
+            self.receiver.resume(messages=history_msgs, remove_termination_string="TERMINATE")
+        else:
+            for msg in history:
+                if isinstance(msg, dict):
+                    msg = Message(**msg)
+                if msg.role == "user":
+                    self.sender.send(
+                        msg.content,
+                        self.receiver,
+                        request_reply=False,
+                        silent=True,
+                    )
+
+                elif msg.role == "assistant":
+                    self.receiver.send(
+                        msg.content,
+                        self.sender,
+                        request_reply=False,
+                        silent=True,
+                    )
 
     def sanitize_agent(self, agent: Dict) -> Agent:
         """ """
 
         skills = agent.get("skills", [])
+        tools = agent.get("tools", [])
 
         # When human input mode is not NEVER and no model is attached, the ui is passing bogus llm_config.
         configured_models = agent.get("models")
@@ -317,6 +333,10 @@ class AutoWorkflowManager:
             agent["config"]["llm_config"] = False
 
         agent = Agent.model_validate(agent)
+
+        if tools:
+            agent.tools = tools
+
         agent.config.is_termination_msg = agent.config.is_termination_msg or (
             lambda x: "TERMINATE" in x.get("content", "").rstrip()[-20:]
         )
@@ -351,6 +371,7 @@ class AutoWorkflowManager:
                 agent.config.system_message = agent.config.system_message + "\n\n" + skills_prompt
             else:
                 agent.config.system_message = get_default_system_message(agent.type) + "\n\n" + skills_prompt
+
         return agent
 
     def load(self, agent: Any) -> autogen.Agent:
@@ -370,6 +391,7 @@ class AutoWorkflowManager:
 
         linked_agents = agent.get("agents", [])
         agent = self.sanitize_agent(agent)
+
         if agent.type == "groupchat":
             groupchat_agents = [self.load(agent) for agent in linked_agents]
             group_chat_config = self._serialize_agent(agent)
@@ -388,6 +410,7 @@ class AutoWorkflowManager:
 
         else:
             if agent.type == "assistant":
+                tools = agent.tools
                 agent = ExtendedConversableAgent(
                     **self._serialize_agent(agent),
                     message_processor=self.process_message,
@@ -396,6 +419,18 @@ class AutoWorkflowManager:
                     a_human_input_timeout=self.a_human_input_timeout,
                     connection_id=self.connection_id,
                 )
+                if tools:
+                    for tool in tools:
+                        func = create_dynamic_function(function_name=tool.name, args_info=tool.args_info, method=tool.method, url=tool.url, auth_provider_id=tool.auth_provider_id)
+                        agent.register_for_llm(name=tool.name, description=tool.description)(func)
+
+                        if self.tool_agent:
+                            self.tool_agent.register_for_execution(name=tool.name)(func)
+                            for _tool in self.pending_tool_list:
+                                self.tool_agent.register_for_execution(name=_tool["name"])(_tool["func"])
+                            self.pending_tool_list = []
+                        else:
+                            self.pending_tool_list.append({"name": tool.name, "func": func})
             elif agent.type == "userproxy":
                 agent = ExtendedConversableAgent(
                     **self._serialize_agent(agent),
@@ -407,6 +442,9 @@ class AutoWorkflowManager:
                 )
             else:
                 raise ValueError(f"Unknown agent type: {agent.type}")
+
+            if agent.name == "tool_agent":
+                self.tool_agent = agent
             return agent
 
     def _generate_output(
@@ -535,7 +573,7 @@ class AutoWorkflowManager:
 
         usage = self._get_usage_summary()
         # print("usage", usage)
-
+        output = remove_keyword_string(output,"TERMINATE")
         result_message = Message(
             content=output,
             role="assistant",

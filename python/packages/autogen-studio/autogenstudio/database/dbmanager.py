@@ -16,11 +16,11 @@ from ..datamodel import (
     Skill,
     Workflow,
     WorkflowAgentLink,
-    WorkflowAgentType,
+    WorkflowAgentType, Tool, AgentToolLink
 )
 from .utils import init_db_samples
 
-valid_link_types = ["agent_model", "agent_skill", "agent_agent", "workflow_agent"]
+valid_link_types = ["agent_model", "agent_skill", "agent_agent", "workflow_agent", "agent_tool"]
 
 
 class WorkflowAgentMap(SQLModel):
@@ -223,6 +223,9 @@ class DBManager:
                 elif link_type == "agent_skill":
                     agent = self.get_items(Agent, filters={"id": primary_id}, session=session).data[0]
                     linked_entities = agent.skills
+                elif link_type == "agent_tool":
+                    agent = self.get_items(Agent, filters={"id": primary_id}, session=session).data[0]
+                    linked_entities = agent.tools
                 elif link_type == "agent_agent":
                     agent = self.get_items(Agent, filters={"id": primary_id}, session=session).data[0]
                     linked_entities = agent.agents
@@ -358,6 +361,30 @@ class DBManager:
                                 )
                             else:
                                 primary_model.skills.append(secondary_model)
+                    elif link_type == "agent_tool":
+                        primary_model = session.exec(select(Agent).where(Agent.id == primary_id)).first()
+                        secondary_model = session.exec(select(Tool).where(Tool.id == secondary_id)).first()
+                        if primary_model is None or secondary_model is None:
+                            status = False
+                            status_message = "One or both entity records do not exist."
+                        else:
+                            # check if the link already exists
+                            existing_link = session.exec(
+                                select(AgentToolLink).where(
+                                    AgentToolLink.agent_id == primary_id,
+                                    AgentToolLink.tool_id == secondary_id,
+                                )
+                            ).first()
+                            if existing_link:
+                                return Response(
+                                    message=(
+                                        f"{secondary_model.__class__.__name__} already linked "
+                                        f"to {primary_model.__class__.__name__}"
+                                    ),
+                                    status=False,
+                                )
+                            else:
+                                primary_model.tools.append(secondary_model)
                     elif link_type == "workflow_agent":
                         primary_model = session.exec(select(Workflow).where(Workflow.id == primary_id)).first()
                         secondary_model = session.exec(select(Agent).where(Agent.id == secondary_id)).first()
@@ -455,6 +482,13 @@ class DBManager:
                         select(AgentSkillLink).where(
                             AgentSkillLink.agent_id == primary_id,
                             AgentSkillLink.skill_id == secondary_id,
+                        )
+                    ).first()
+                elif link_type == "agent_tool":
+                    existing_link = session.exec(
+                        select(AgentToolLink).where(
+                            AgentToolLink.agent_id == primary_id,
+                            AgentToolLink.tool_id == secondary_id,
                         )
                     ).first()
                 elif link_type == "agent_agent":

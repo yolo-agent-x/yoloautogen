@@ -158,6 +158,7 @@ const ChatBox = ({
     }
 
     let items: MenuProps["items"] = [];
+    const lastAgent = message?.meta?.messages?.at(-1).sender ?? "AGENTS"
 
     if (isUser) {
       items.push({
@@ -219,7 +220,7 @@ const ChatBox = ({
         <div className={`  ${isUser ? "" : " w-full"} inline-flex gap-2`}>
           <div className=""></div>
           <div className="font-semibold text-secondary text-sm w-16">{`${
-            isUser ? "USER" : "AGENTS"
+            isUser ? "USER" : lastAgent
           }`}</div>
           <div
             className={`inline-block group relative w-full p-2 rounded  ${css}`}
