@@ -42,15 +42,15 @@ default_system_message = """
 
      2) Check for missing parameters
      "Book a table at the nearest Italian restaurant."
-     Agent: Identifies missing information and requests clarification from the user "Could you specify the number of people and time for the reservation? TERMINATE."
+     Agent: Identifies missing information and requests clarification from the user "Could you specify the number of people and time for the reservation? TERMINATE"
 
      3) Check for specific parameters:
      "Get the latest news."        
-     Agent: Requests further clarification from the user "Could you specify the news category or region of interest? TERMINATE."
+     Agent: Requests further clarification from the user "Could you specify the news category or region of interest? TERMINATE"
 
      4) After Task Completion:
      After all steps are completed, Parameter Agent provides a final summary to the user
-     Agent: Requested tasks have been completed. The weather was checked, and your reservation was made. TERMINATE.
+     Agent: Requested tasks have been completed. The weather was checked, and your reservation was made. TERMINATE
      """
 
 

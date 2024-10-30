@@ -573,6 +573,4 @@ def find_key_value(d, target_key):
     return None
 
 def remove_keyword_string(target: str, keyword: str) -> str:
-    pattern = re.escape(keyword) + r".$"
-    target = re.sub(pattern, "", target)
-    return target.strip()
+    return target.replace(keyword,"")
