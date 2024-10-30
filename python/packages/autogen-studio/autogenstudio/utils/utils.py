@@ -571,3 +571,6 @@ def find_key_value(d, target_key):
             if item is not None:
                 return item
     return None
+
+def remove_keyword_string(target: str, keyword: str) -> str:
+    return target.replace(keyword,"")
