@@ -290,7 +290,7 @@ def summary_content(content: str) -> str:
         name="sine_wave",
         description="Function to draw a sine graph.",
         user_id="guestuser@gmail.com",
-        libraries=["numpy", "matplotlib.pyplot"],
+        libraries=["numpy", "matplotlib"],
         content="""import numpy as np
 import matplotlib.pyplot as plt
 
