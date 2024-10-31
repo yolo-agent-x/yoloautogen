@@ -286,6 +286,33 @@ def summary_content(content: str) -> str:
 """,
     )
 
+    generate_sine_graph = Skill(
+        name="sine_wave",
+        description="Function to draw a sine graph.",
+        user_id="guestuser@gmail.com",
+        libraries=["numpy", "matplotlib.pyplot"],
+        content="""import numpy as np
+import matplotlib.pyplot as plt
+
+def plot_sine_wave(amplitude: int, frequency: int):
+    #Graph the sine function.
+    # x축 범위 설정
+    x = np.linspace(0, 2 * np.pi, 100)  # 0에서 2π까지 100개의 점 생성
+    # y축 값 계산
+    y = amplitude * np.sin(frequency * x)
+
+    # 그래프 그리고 이미지 파일로 저장
+    plt.plot(x, y, label=f"Sine wave: amplitude={amplitude}, frequency={frequency}")
+    plt.title("Sine Wave Plot")
+    plt.xlabel("x-axis")
+    plt.ylabel("y-axis")
+    plt.legend()
+    plt.grid(True)
+    plt.show()
+    plt.savefig("sine_wave.png")
+    """,
+    )
+
     # tools
     confluence_search_tool = Tool(
         name="confluence_search_tool",
@@ -450,6 +477,21 @@ def summary_content(content: str) -> str:
         user_id="guestuser@gmail.com", type=AgentType.assistant, config=general_agent_config.model_dump(mode="json")
     )
 
+    sign_graph_agent_config = AgentConfig(
+        name="sign_graph_agent",
+        description="draw a sine graph assistant",
+        human_input_mode="NEVER",
+        max_consecutive_auto_reply=25,
+        system_message="You are a helpful AI assistant. Solve tasks using your coding and language skills. In the following cases, suggest python code (in a python coding block) or shell script (in a sh coding block) for the user to execute. 1. When you need to collect info, use the code to output the info you need, for example, browse or search the web, download/read a file, print the content of a webpage or a file, get the current date/time, check the operating system. After sufficient info is printed and the task is ready to be solved based on your language skill, you can solve the task by yourself. 2. When you need to perform some task with code, use the code to perform the task and output the result. Finish the task smartly. Solve the task step by step if you need to. If a plan is not provided, explain your plan first. Be clear which step uses code, and which step uses your language skill. When using code, you must indicate the script type in the code block. The user cannot provide any other feedback or perform any other action beyond executing the code you suggest. The user can't modify your code. So do not suggest incomplete code which requires users to modify. Don't use a code block if it's not intended to be executed by the user. If you want the user to save the code in a file before executing it, put # filename: <filename> inside the code block as the first line. Don't include multiple code blocks in one response. Do not ask users to copy and paste the result. Instead, use 'print' function for the output when relevant. Check the execution result returned by the user. If the result indicates there is an error, fix the error and output the code again. Suggest the full code instead of partial code or code changes. If the error can't be fixed or if the task is not solved even after the code is executed successfully, analyze the problem, revisit your assumption, collect additional info you need, and think of a different approach to try. When you find an answer, verify the answer carefully. Include verifiable evidence in your response if possible. When all tasks (code execution) are finished, answer 'TERMINATE' at the end.",
+        code_execution_config=CodeExecutionConfigTypes.none,
+        llm_config={
+            "temperature": 0
+        },
+    )
+    sign_graph_agent = Agent(
+        user_id="guestuser@gmail.com", type=AgentType.assistant, config=sign_graph_agent_config.model_dump(mode="json")
+    )
+
     # group chat agent
     yolo_groupchat_config = AgentConfig(
         name="yolo_groupchat",
@@ -477,6 +519,14 @@ def summary_content(content: str) -> str:
             "'Scaled Agile'로 confluence에서 검색한 후 해당 내용을 요약해서 jira 이슈로 생성 한 후 그 결과를 knox mail로 jason과 milo에게 보내줘."],
     )
 
+    sine_workflow = Workflow(
+        name="Sine Workflow",
+        description="Sine workflow",
+        user_id="guestuser@gmail.com",
+        sample_tasks=[
+            "'진폭은 3이고 주파수는 5인 사인 그래프를 그려주고 결과로 이미지 파일로 다운로드 해줘."],
+    )
+
     with Session(dbmanager.engine) as session:
         # model
         session.add(gpt_4o_mini)
@@ -487,6 +537,7 @@ def summary_content(content: str) -> str:
         # session.add(send_knox_email)
         # session.add(search_employee)
         # session.add(summary_content)
+        session.add(generate_sine_graph)
 
         # tool
         session.add(confluence_search_tool)
@@ -502,21 +553,25 @@ def summary_content(content: str) -> str:
         session.add(jira_agent)
         session.add(knox_agent)
         session.add(general_agent)
+        session.add(sign_graph_agent)
         session.add(yolo_groupchat_agent)
 
         session.add(yolo_workflow)
+        session.add(sine_workflow)
         session.commit()
 
         dbmanager.link(link_type="agent_model", primary_id=confluence_agent.id, secondary_id=gpt_4o_mini.id)
         dbmanager.link(link_type="agent_model", primary_id=jira_agent.id, secondary_id=gpt_4o_mini.id)
         dbmanager.link(link_type="agent_model", primary_id=knox_agent.id, secondary_id=gpt_4o_mini.id)
         dbmanager.link(link_type="agent_model", primary_id=general_agent.id, secondary_id=gpt_4o_mini.id)
+        dbmanager.link(link_type="agent_model", primary_id=sign_graph_agent.id, secondary_id=gpt_4o_mini.id)
 
         # dbmanager.link(link_type="agent_skill", primary_id=confluence_agent.id, secondary_id=confluence_search.id)
         # dbmanager.link(link_type="agent_skill", primary_id=jira_agent.id, secondary_id=jira_issue_create.id)
         # dbmanager.link(link_type="agent_skill", primary_id=knox_agent.id, secondary_id=search_employee.id)
         # dbmanager.link(link_type="agent_skill", primary_id=knox_agent.id, secondary_id=send_knox_email.id)
         # dbmanager.link(link_type="agent_skill", primary_id=summary_agent.id, secondary_id=summary_content.id)
+        dbmanager.link(link_type="agent_skill", primary_id=sign_graph_agent.id, secondary_id=generate_sine_graph.id)
 
         # link agent to tool
         dbmanager.link(link_type="agent_tool", primary_id=confluence_agent.id, secondary_id=confluence_search_tool.id)
@@ -545,6 +600,17 @@ def summary_content(content: str) -> str:
             link_type="workflow_agent",
             primary_id=yolo_workflow.id,
             secondary_id=yolo_groupchat_agent.id,
+            agent_type="receiver",
+        )
+
+        dbmanager.link(
+            link_type="workflow_agent", primary_id=sine_workflow.id, secondary_id=user_proxy_agent.id,
+            agent_type="sender"
+        )
+        dbmanager.link(
+            link_type="workflow_agent",
+            primary_id=sine_workflow.id,
+            secondary_id=sign_graph_agent.id,
             agent_type="receiver",
         )
         logger.info("Successfully initialized database with YOLO Workflow")
