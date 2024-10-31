@@ -314,7 +314,7 @@ def summary_content(content: str) -> str:
 
     search_employee_tool = Tool(
         name="search_employee_tool",
-        description="Search knox employee information.",
+        description="Search knox employee information(name, email address etc.).",
         user_id="guestuser@gmail.com",
         method="get",
         url="http://localhost:7700/plugin/api/v1/knox/search-employee",
@@ -376,7 +376,6 @@ def summary_content(content: str) -> str:
         You only execute single function at once. 
         """,
         code_execution_config=CodeExecutionConfigTypes.none,
-        default_auto_reply="TERMINATE",
         llm_config={
             "temperature": 0
         },
@@ -460,7 +459,6 @@ def summary_content(content: str) -> str:
         max_consecutive_auto_reply=25,
         system_message="You are a group chat manager",
         code_execution_config=CodeExecutionConfigTypes.none,
-        default_auto_reply="TERMINATE",
         llm_config={
             "temperature": 0
         },
