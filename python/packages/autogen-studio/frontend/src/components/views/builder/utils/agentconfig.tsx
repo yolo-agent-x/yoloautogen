@@ -507,7 +507,7 @@ export const AgentViewer = ({
         label: (
             <>
               <HeartIcon className="h-4 w-4 inline-block mr-1" />
-              Skills
+              Tools
             </>
         ),
         key: "5",
