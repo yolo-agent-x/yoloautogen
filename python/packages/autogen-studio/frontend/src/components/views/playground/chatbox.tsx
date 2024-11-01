@@ -219,7 +219,7 @@ const ChatBox = ({
         {" "}
         <div className={`  ${isUser ? "" : " w-full"} inline-flex gap-2`}>
           <div className=""></div>
-          <div className="font-semibold text-secondary text-sm w-16">{`${
+          <div style={{"minWidth": '150px'}} className="font-semibold text-secondary text-sm w-16">{`${
             isUser ? "USER" : lastAgent
           }`}</div>
           <div
