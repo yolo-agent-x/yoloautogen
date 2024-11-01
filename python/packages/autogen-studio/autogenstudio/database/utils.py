@@ -510,6 +510,36 @@ def plot_sine_wave(amplitude: int, frequency: int):
         user_id="guestuser@gmail.com", type=AgentType.groupchat, config=yolo_groupchat_config.model_dump(mode="json")
     )
 
+    poem_writer_agent_config = AgentConfig(
+        name="poem_writer_agent",
+        description="Poem Writer Agent. Write a Poem",
+        human_input_mode="NEVER",
+        max_consecutive_auto_reply=25,
+        system_message="You are a professional poem writer\n." + AssistantAgent.DEFAULT_SYSTEM_MESSAGE,
+        code_execution_config=CodeExecutionConfigTypes.none,
+        llm_config={
+            "temperature": 0
+        },
+    )
+    poem_writer_agent = Agent(
+        user_id="guestuser@gmail.com", type=AgentType.assistant, config=poem_writer_agent_config.model_dump(mode="json"), task_instruction="You're a poem writer. Write a beautiful poem."
+    )
+
+    poem_evaluator_agent_config = AgentConfig(
+        name="poem_evaluator_agent",
+        description="Poem Evaluator Agent. Evaluate a Poem",
+        human_input_mode="NEVER",
+        max_consecutive_auto_reply=25,
+        system_message="You are a professional poem evaluator\n." + AssistantAgent.DEFAULT_SYSTEM_MESSAGE,
+        code_execution_config=CodeExecutionConfigTypes.none,
+        llm_config={
+            "temperature": 0
+        },
+    )
+    poem_evaluator_agent = Agent(
+        user_id="guestuser@gmail.com", type=AgentType.assistant, config=poem_evaluator_agent_config.model_dump(mode="json"), task_instruction="You're a poem evaluator. Critically evaluate the poem. Answer in Korean."
+    )
+
     # workflows
     yolo_workflow = Workflow(
         name="YOLO Workflow",
@@ -525,6 +555,15 @@ def plot_sine_wave(amplitude: int, frequency: int):
         user_id="guestuser@gmail.com",
         sample_tasks=[
             "'진폭은 3이고 주파수는 5인 사인 그래프를 그려주고 결과로 이미지 파일로 다운로드 해줘."],
+    )
+
+    poem_workflow = Workflow(
+        name="Poem Workflow",
+        description="Poem workflow",
+        user_id="guestuser@gmail.com",
+        type=WorkFlowType.sequential,
+        sample_tasks=[
+            "겨울에 대한 시를 작성해줘"],
     )
 
     with Session(dbmanager.engine) as session:
@@ -555,9 +594,13 @@ def plot_sine_wave(amplitude: int, frequency: int):
         session.add(general_agent)
         session.add(sign_graph_agent)
         session.add(yolo_groupchat_agent)
+        session.add(poem_writer_agent)
+        session.add(poem_evaluator_agent)
 
+        # workflow
         session.add(yolo_workflow)
         session.add(sine_workflow)
+        session.add(poem_workflow)
         session.commit()
 
         dbmanager.link(link_type="agent_model", primary_id=confluence_agent.id, secondary_id=gpt_4o_mini.id)
@@ -565,6 +608,8 @@ def plot_sine_wave(amplitude: int, frequency: int):
         dbmanager.link(link_type="agent_model", primary_id=knox_agent.id, secondary_id=gpt_4o_mini.id)
         dbmanager.link(link_type="agent_model", primary_id=general_agent.id, secondary_id=gpt_4o_mini.id)
         dbmanager.link(link_type="agent_model", primary_id=sign_graph_agent.id, secondary_id=gpt_4o_mini.id)
+        dbmanager.link(link_type="agent_model", primary_id=poem_writer_agent.id, secondary_id=gpt_4o_mini.id)
+        dbmanager.link(link_type="agent_model", primary_id=poem_evaluator_agent.id, secondary_id=gpt_4o_mini.id)
 
         # dbmanager.link(link_type="agent_skill", primary_id=confluence_agent.id, secondary_id=confluence_search.id)
         # dbmanager.link(link_type="agent_skill", primary_id=jira_agent.id, secondary_id=jira_issue_create.id)
@@ -613,4 +658,14 @@ def plot_sine_wave(amplitude: int, frequency: int):
             secondary_id=sign_graph_agent.id,
             agent_type="receiver",
         )
+
+        dbmanager.link(
+            link_type="workflow_agent", primary_id=poem_workflow.id, secondary_id=poem_writer_agent.id,
+            agent_type="sequential", sequence_id=1
+        )
+        dbmanager.link(
+            link_type="workflow_agent", primary_id=poem_workflow.id, secondary_id=poem_evaluator_agent.id,
+            agent_type="sequential", sequence_id=2
+        )
+
         logger.info("Successfully initialized database with YOLO Workflow")

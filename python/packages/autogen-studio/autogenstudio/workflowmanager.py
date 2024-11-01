@@ -723,7 +723,7 @@ class SequentialWorkflowManager:
         user_proxy = {
             "config": {
                 "name": "user_proxy",
-                "human_input_mode": "NEVER",
+                "human_input_mode": "ALWAYS",
                 "max_consecutive_auto_reply": 25,
                 "code_execution_config": "local",
                 "default_auto_reply": "TERMINATE",
