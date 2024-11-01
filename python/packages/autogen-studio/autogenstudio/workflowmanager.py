@@ -275,7 +275,6 @@ class AutoWorkflowManager:
         # This avoids adding groupchat broadcast messages to the history (which are sent with request_reply=False),
         # or when agent populated from history
         if request_reply is not False or sender_type == "groupchat" or (sender_type == "agent" and message_payload.get("recipient") == 'chat_manager' ) :
-            print("message!!! :::", request_reply , sender_type , message_payload)
             self.agent_history.append(message_payload)  # add to history
             socket_msg = SocketMessage(
                 type="agent_message",
@@ -420,9 +419,10 @@ class AutoWorkflowManager:
                     connection_id=self.connection_id,
                 )
                 if tools:
-                    for tool in tools:
+                    for index, tool in  enumerate(tools):
                         func = create_dynamic_function(function_name=tool.name, args_info=tool.args_info, method=tool.method, url=tool.url, auth_provider_id=tool.auth_provider_id)
                         agent.register_for_llm(name=tool.name, description=tool.description)(func)
+                        agent.description += f"\n [{agent.name}_tool {index+1} : {tool.description}]"
 
                         if self.tool_agent:
                             self.tool_agent.register_for_execution(name=tool.name)(func)
