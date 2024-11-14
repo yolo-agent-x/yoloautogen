@@ -35,16 +35,16 @@ class AutoWorkflowManager:
     """
 
     def __init__(
-        self,
-        workflow: Union[Dict, str],
-        history: Optional[List[Message]] = None,
-        work_dir: str = None,
-        clear_work_dir: bool = True,
-        send_message_function: Optional[callable] = None,
-        a_send_message_function: Optional[Coroutine] = None,
-        a_human_input_function: Optional[callable] = None,
-        a_human_input_timeout: Optional[int] = 60,
-        connection_id: Optional[str] = None,
+            self,
+            workflow: Union[Dict, str],
+            history: Optional[List[Message]] = None,
+            work_dir: str = None,
+            clear_work_dir: bool = True,
+            send_message_function: Optional[callable] = None,
+            a_send_message_function: Optional[Coroutine] = None,
+            a_human_input_function: Optional[callable] = None,
+            a_human_input_timeout: Optional[int] = 60,
+            connection_id: Optional[str] = None,
     ) -> None:
         """
         Initializes the WorkflowManager with agents specified in the config and optional message history.
@@ -123,7 +123,7 @@ class AutoWorkflowManager:
             raise ValueError("Sender and receiver agents are not defined in the workflow configuration.")
 
     async def _a_run_workflow(
-        self, message: str, history: Optional[List[Message]] = None, clear_history: bool = False
+            self, message: str, history: Optional[List[Message]] = None, clear_history: bool = False
     ) -> None:
         """
         Asynchronously runs the workflow based on the provided configuration.
@@ -153,11 +153,11 @@ class AutoWorkflowManager:
             raise ValueError("Sender and receiver agents are not defined in the workflow configuration.")
 
     def _serialize_agent(
-        self,
-        agent: Agent,
-        mode: str = "python",
-        include: Optional[List[str]] = {"config"},
-        exclude: Optional[List[str]] = None,
+            self,
+            agent: Agent,
+            mode: str = "python",
+            include: Optional[List[str]] = {"config"},
+            exclude: Optional[List[str]] = None,
     ) -> Dict:
         """ """
         # exclude = ["id","created_at", "updated_at","user_id","type"]
@@ -191,13 +191,13 @@ class AutoWorkflowManager:
         return result["config"]
 
     def process_message(
-        self,
-        sender: autogen.Agent,
-        receiver: autogen.Agent,
-        message: Dict,
-        request_reply: bool = False,
-        silent: bool = False,
-        sender_type: str = "agent",
+            self,
+            sender: autogen.Agent,
+            receiver: autogen.Agent,
+            message: Dict,
+            request_reply: bool = False,
+            silent: bool = False,
+            sender_type: str = "agent",
     ) -> None:
         """
         Processes the message and adds it to the agent history.
@@ -236,13 +236,13 @@ class AutoWorkflowManager:
                 self.send_message_function(socket_msg.dict())
 
     async def a_process_message(
-        self,
-        sender: autogen.Agent,
-        receiver: autogen.Agent,
-        message: Dict,
-        request_reply: bool = False,
-        silent: bool = False,
-        sender_type: str = "agent",
+            self,
+            sender: autogen.Agent,
+            receiver: autogen.Agent,
+            message: Dict,
+            request_reply: bool = False,
+            silent: bool = False,
+            sender_type: str = "agent",
     ) -> None:
         """
         Asynchronously processes the message and adds it to the agent history.
@@ -259,7 +259,9 @@ class AutoWorkflowManager:
 
         message = message if isinstance(message, dict) else {"content": message, "role": "user"}
         if message.get("content") is None and message.get("tool_calls"):
-            message["content"] = "\n\n".join(f"tool_name: {tool.get('function', {}).get('name', '')}\n arguments: {tool.get('function', {}).get('arguments', '')}" for tool in message["tool_calls"])
+            message["content"] = "\n\n".join(
+                f"tool_name: {tool.get('function', {}).get('name', '')}\n arguments: {tool.get('function', {}).get('arguments', '')}"
+                for tool in message["tool_calls"])
         message_payload = {
             "recipient": receiver.name,
             "sender": sender.name,
@@ -955,6 +957,61 @@ class ExtendedConversableAgent(autogen.ConversableAgent):
         self.a_human_input_response = None
         self.a_human_input_timeout = a_human_input_timeout
         self.connection_id = connection_id
+
+    def send(self,
+             message: Union[Dict, str],
+             recipient: Agent,
+             request_reply: Optional[bool] = None,
+             silent: Optional[bool] = False, ):
+        message = self._process_message_before_send(message, recipient,
+                                                    autogen.ConversableAgent._is_silent(self, silent))
+        # When the agent composes and sends the message, the role of the message is "assistant"
+        # unless it's "function".
+
+        valid = self._append_oai_message(message, "assistant", recipient)
+        if valid:
+            message_dict = self._message_to_dict(message)
+
+            is_group_chat = isinstance(recipient, autogen.GroupChatManager) or isinstance(self,
+                                                                                          autogen.GroupChatManager)
+            has_tool_calls = len(message_dict.get("tool_calls", [])) > 0
+
+            if not is_group_chat and has_tool_calls:
+                # Send message to self if tool calls exist and it's not a group chat
+                self.receive(message, self, True, silent)
+            else:
+                # Otherwise, send to recipient
+                recipient.receive(message, self, request_reply, silent)
+        else:
+            raise ValueError(
+                "Message can't be converted into a valid ChatCompletion message. Either content or function_call must be provided."
+            )
+
+    async def a_send(self, message: Union[Dict, str],
+                     recipient: Agent,
+                     request_reply: Optional[bool] = None,
+                     silent: Optional[bool] = False):
+        message = self._process_message_before_send(message, recipient, autogen.ConversableAgent._is_silent(self, silent))
+        # When the agent composes and sends the message, the role of the message is "assistant"
+        # unless it's "function".
+        valid = self._append_oai_message(message, "assistant", recipient)
+        if valid:
+            message_dict = self._message_to_dict(message)
+
+            is_group_chat = isinstance(recipient, autogen.GroupChatManager) or isinstance(self,
+                                                                                          autogen.GroupChatManager)
+            has_tool_calls = len(message_dict.get("tool_calls", [])) > 0
+
+            if not is_group_chat and has_tool_calls:
+                # Send message to self if tool calls exist and it's not a group chat
+                await self.a_receive(message, self, True, silent)
+            else:
+                # Otherwise, send to recipient
+                await recipient.a_receive(message, self, request_reply, silent)
+        else:
+            raise ValueError(
+                "Message can't be converted into a valid ChatCompletion message. Either content or function_call must be provided."
+            )
 
     def receive(
         self,
