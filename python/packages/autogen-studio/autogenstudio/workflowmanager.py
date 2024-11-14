@@ -968,6 +968,11 @@ class ExtendedConversableAgent(autogen.ConversableAgent):
         super().receive(message, sender, request_reply, silent)
 
     async def a_receive(
+            self,
+            message: Union[Dict, str],
+            sender: autogen.Agent,
+            request_reply: Optional[bool] = None,
+            silent: Optional[bool] = False,
     ) -> None:
         if self.a_message_processor:
             await self.a_message_processor(sender, self, message, request_reply, silent, sender_type="agent")
