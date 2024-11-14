@@ -158,7 +158,7 @@ const ChatBox = ({
     }
 
     let items: MenuProps["items"] = [];
-    const lastAgent = message?.meta?.messages?.at(-1).sender ?? "AGENTS"
+    const lastAgent = message?.meta?.messages?.at(-1)?.sender ?? "AGENTS"
 
     if (isUser) {
       items.push({
